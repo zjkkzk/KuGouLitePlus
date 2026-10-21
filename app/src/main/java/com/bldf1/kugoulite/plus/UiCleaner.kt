@@ -2380,14 +2380,28 @@ object UiCleaner {
         val now = SystemClock.uptimeMillis()
         if (attachWindowStart == 0L) attachWindowStart = now
         if (now - attachWindowStart >= 1000L) {
-            ModuleLog.log("R173 挂载速率 ${attachCount} 次 / ${now - attachWindowStart}ms")
+            // ⭐ R179：打印挂载热点（谁在被反复 attach），用于定位重建源
+            val top = try {
+                attachNameCount.entries.sortedByDescending { it.value }.take(6)
+                    .joinToString(" ") { "${it.key}×${it.value}" }
+            } catch (_: Throwable) { "" }
+            ModuleLog.log("R173 挂载速率 ${attachCount} 次 / ${now - attachWindowStart}ms top=[$top]")
             attachCount = 0
+            attachNameCount.clear()
             attachWindowStart = now
         }
     }
 
+    private val attachNameCount = HashMap<String, Int>()
+
     private fun onViewAttached(view: View) {
         countAttach()
+        try {
+            val rn = if (view.id != View.NO_ID) resourceName(view) else null
+            val k = view.javaClass.simpleName + "#" + (rn ?: (if (view.id != View.NO_ID) Integer.toHexString(view.id) else "-"))
+            attachNameCount[k] = (attachNameCount[k] ?: 0) + 1
+        } catch (_: Throwable) {
+        }
         // ⭐ R167/R168：清单类页面整页跳过；其余页面先刷新页面 id 供规则筛选
         currentActivity?.get()?.let {
             if (isCleanListPage(it)) return
