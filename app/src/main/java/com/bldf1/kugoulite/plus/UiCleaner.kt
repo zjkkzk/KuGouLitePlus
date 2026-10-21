@@ -1945,6 +1945,12 @@ object UiCleaner {
     /** 可见触发隐藏的计数（死循环断路器，见 preHideSelf） */
     private val visHideCount = java.util.WeakHashMap<View, Int>()
 
+    // ⭐ R175：拉锯断路器。同一视图被隐藏 3 次后若仍被宿主还原，说明我们在跟它
+    // 拉锯（实测「我的」页多条规则各自拉锯，叠加到 1148 次/秒视图挂载、
+    // 「我的」→「最近」转场被拖到 10s 以上）。第 4 次起放弃该视图：
+    // 容忍它显示出来，换取页面不再卡死。
+    private val ripCount = java.util.WeakHashMap<View, Int>()
+
     private val preDrawListener = android.view.ViewTreeObserver.OnPreDrawListener {
         try {
             // ⭐ R75「绘制前兜底」（**永久生效**，不只在启动窗口）：
@@ -3277,6 +3283,10 @@ object UiCleaner {
      */
     private fun hideByIdRule(view: View, rule: Rule, src: String = ""): Boolean {
         return try {
+            // ⭐ R175：拉锯断路器（见 ripCount 注释）
+            val rip = (ripCount[view] ?: 0) + 1
+            if (rip > 3) return false
+            ripCount[view] = rip
             // ⚠️ 类名排除门禁（最后一道闸，10-12）：把所有调用路径都兜住——
             // 真机取证发现「我的页赚钱入口」(dk_) 在页面门禁 apply→restore→
             // apply 抖动中，仍有一次在**已绘制后**把首页顶栏 MainTopImageView
