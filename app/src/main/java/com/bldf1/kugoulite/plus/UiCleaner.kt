@@ -1951,6 +1951,25 @@ object UiCleaner {
     // 容忍它显示出来，换取页面不再卡死。
     private val ripCount = java.util.WeakHashMap<View, Int>()
 
+    // ⭐ R176：「我的页系列」规则只在**真正的我的页**生效。
+    // 从「我的」转场去「收藏/最近/本地/已购」时，主 pager 仍停在 page 1，
+    // requireMinePage 的判定依然成立 ⇒ 这批规则在二级页误伤宿主的正常元素
+    // （会员角标/赚钱入口/签到条…），宿主发现后销毁重建那块 UI、新 View 再命中
+    // ⇒ 实测每秒 1148 次视图挂载、「我的」→「最近」转场被拖到 10s 以上。
+    // 现在用 curPageId（R168 基建）判断：只要不在 main 页，这批规则一律不生效。
+    private val MINE_PAGE_RULE_KEYS = setOf(
+        Settings.KEY_UI_MINE_BADGE,
+        Settings.KEY_UI_MINE_EARN,
+        Settings.KEY_UI_MINE_MEDAL,
+        Settings.KEY_UI_MINE_MEMBER_BADGE,
+        Settings.KEY_UI_MINE_SEARCH,
+        Settings.KEY_UI_MINE_SIGN_BAR,
+        Settings.KEY_UI_MINE_TAB_BAR,
+        Settings.KEY_UI_MEMBER_BAR,
+        Settings.KEY_UI_FREE_LISTEN_ICON,
+        Settings.KEY_UI_VIP_EXPIRE
+    )
+
     private val preDrawListener = android.view.ViewTreeObserver.OnPreDrawListener {
         try {
             // ⭐ R75「绘制前兜底」（**永久生效**，不只在启动窗口）：
@@ -3283,6 +3302,8 @@ object UiCleaner {
      */
     private fun hideByIdRule(view: View, rule: Rule, src: String = ""): Boolean {
         return try {
+            // ⭐ R176：我的页系列规则在二级页一律不生效（见 MINE_PAGE_RULE_KEYS 注释）
+            if (rule.key in MINE_PAGE_RULE_KEYS && curPageId != "main") return false
             // ⭐ R175：拉锯断路器（见 ripCount 注释）
             val rip = (ripCount[view] ?: 0) + 1
             if (rip > 3) return false
