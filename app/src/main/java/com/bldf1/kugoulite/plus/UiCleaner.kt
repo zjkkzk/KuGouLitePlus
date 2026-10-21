@@ -413,8 +413,13 @@ object UiCleaner {
             hideParentLevels = 1),
         Rule(Settings.KEY_UI_SEARCH_INDICATOR, "搜索推广指示器",
             listOf(), listOf(), idNames = listOf("gu4"), minYRatio = 0.15f),
+        // ⭐ R174：本规则只按 id=ezd + y>10% 判定，**没有页面门禁**。
+        // 但 ezd 在「我的」页也被复用（同 ID 跨页复用的老坑）⇒ 在「我的」页把宿主的
+        // 正常 VIP 条藏掉、宿主立刻还原、我们再藏 —— 无限拉锯，实测该页每秒触发
+        // 1148 次视图挂载，转场被拖到 10s 以上（用户实锤「打开最近卡顿+顶部闪转盘」）。
         Rule(Settings.KEY_UI_SEARCH_VIP_BAR, "搜索结果VIP条",
-            listOf(), listOf(), idNames = listOf("ezd"), minYRatio = 0.10f),
+            listOf(), listOf(), idNames = listOf("ezd"), minYRatio = 0.10f,
+            requireActivityName = "Search"),
         Rule(Settings.KEY_UI_VIP_EXPIRE, "VIP过期胶囊",
             listOf(), listOf(), idNames = listOf("c6a")),
         Rule(Settings.KEY_UI_VIP_LOOK_BAR, "VIP去看看残条",
@@ -2263,6 +2268,13 @@ object UiCleaner {
             pageTagCache
         } else {
             val t = activePageTag(a)
+            // ⭐ R173 诊断：页面切换时间线（排查「我的」→「最近」转场被拖到 10s+）
+            if (t != pageTagCache && pageTagCache.isNotEmpty()) {
+                ModuleLog.log(
+                    "R173 页面切换 ${pageTagCache.substringAfterLast('.')} -> " +
+                        "${t.substringAfterLast('.')} 挂载次数=$attachCount"
+                )
+            }
             pageTagCache = t
             pageTagAt = now
             pageTagValidFor = java.lang.ref.WeakReference(a)
@@ -2332,7 +2344,25 @@ object UiCleaner {
         }
     }
 
+    @Volatile
+    private var attachCount = 0L
+
+    @Volatile
+    private var attachWindowStart = 0L
+
+    private fun countAttach() {
+        attachCount++
+        val now = SystemClock.uptimeMillis()
+        if (attachWindowStart == 0L) attachWindowStart = now
+        if (now - attachWindowStart >= 1000L) {
+            ModuleLog.log("R173 挂载速率 ${attachCount} 次 / ${now - attachWindowStart}ms")
+            attachCount = 0
+            attachWindowStart = now
+        }
+    }
+
     private fun onViewAttached(view: View) {
+        countAttach()
         // ⭐ R167/R168：清单类页面整页跳过；其余页面先刷新页面 id 供规则筛选
         currentActivity?.get()?.let {
             if (isCleanListPage(it)) return
