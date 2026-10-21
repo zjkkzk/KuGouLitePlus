@@ -1495,6 +1495,13 @@ object UiCleaner {
                                 return@intercept chain.proceed()
                             }
                             // 应用试图复活被隐藏的视图：压回
+                            // ⭐ R182：mine 系列规则的视图改用 alpha 压制——
+                            // 压回 GONE 会让 RecyclerView 全量 rebind（892 次/秒挂载风暴）。
+                            if (held.key in MINE_PAGE_RULE_KEYS) {
+                                if (v.alpha != 0f) v.alpha = 0f
+                                invisibleHides[v] = true
+                                return@intercept if (arg != View.INVISIBLE) View.INVISIBLE else chain.proceed()
+                            }
                             val press = if (invisibleHides[v] == true) View.INVISIBLE else View.GONE
                             return@intercept if (press != arg) press else chain.proceed()
                         }
