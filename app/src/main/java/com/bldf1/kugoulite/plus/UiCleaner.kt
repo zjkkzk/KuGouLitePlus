@@ -1037,11 +1037,10 @@ object UiCleaner {
         // 6. 会员栏
         if (Settings.isFeature(v.context, Settings.KEY_UI_MEMBER_BAR)) {
             if (t.contains("即将过期")) {
-                // ⭐ R181：会员栏是「我的」页 RecyclerView 里的元素，
-                // GONE 改布局会触发整列表 rebind（实测 892 次/秒挂载），
-                // 改用 alpha=0（配 setAlpha 守卫）。
-                if (v.alpha != 0f) v.alpha = 0f
-                hiddenByUs[v] = memberBarRule
+                if (v.visibility != View.GONE) {
+                    v.visibility = View.GONE
+                    hiddenByUs[v] = memberBarRule
+                }
                 return
             }
             if (!isOwn && MEMBER_PROMO_KEYWORDS.any { t.contains(it) }) {
