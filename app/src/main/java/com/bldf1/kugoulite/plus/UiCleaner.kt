@@ -627,6 +627,7 @@ object UiCleaner {
             if ("addview" !in skipHooks) installAddViewHook(xposed)
             if ("inneradd" !in skipHooks) installInnerAddHooks(xposed)
             if ("inflate" !in skipHooks) installInflateHook(xposed)
+        if ("alphaguard" !in skipHooks) installAlphaGuard(xposed)
             if ("setid" !in skipHooks) installSetIdHook(xposed)
             if ("text" !in skipHooks) installTextHook(xposed)
             if ("visibility" !in skipHooks) installVisibilityHook(xposed)
@@ -1846,6 +1847,40 @@ object UiCleaner {
         } catch (_: Throwable) {
         }
         ModuleLog.log("UI净化: 内部加入路径钩子安装 $ok/2（addViewInLayout / attachViewToParent）")
+    }
+
+    private var alphaGuardInstalled = false
+
+    /**
+     * ⭐ R180：alpha 守卫。对已登记在 hiddenByUs 的视图，忽略宿主的 setAlpha。
+     * 为什么需要：RecyclerView 里不能 GONE（改布局 ⇒ 全量 rebind ⇒ 每秒 28 次重建），
+     * 只能用 alpha=0；但宿主的入场/呼吸动画会每帧 setAlpha(1) 把它覆盖，
+     * 净化就失效了。
+     * 性能：setAlpha 是高频调用，这里只做一次 WeakHashMap 查找，
+     * 未登记（绝大多数）直接 proceed。
+     */
+    private fun installAlphaGuard(xposed: XposedModule) {
+        if (alphaGuardInstalled) return
+        alphaGuardInstalled = true
+        try {
+            val m = android.view.View::class.java
+                .getMethod("setAlpha", Float::class.javaPrimitiveType)
+            xposed.hook(m)
+                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept { chain ->
+                    try {
+                        val v = chain.thisObject as? View
+                        if (v != null && hiddenByUs.containsKey(v)) {
+                            // 已登记隐藏：拒绝宿主的任何 alpha 改动（保持全透明）
+                            return@intercept null
+                        }
+                    } catch (_: Throwable) {
+                    }
+                    chain.proceed()
+                }
+        } catch (t: Throwable) {
+            ModuleLog.log("UI净化: alpha 守卫安装失败: $t")
+        }
     }
 
     private fun installInflateHook(xposed: XposedModule) {
@@ -3318,6 +3353,17 @@ object UiCleaner {
         return try {
             // ⭐ R176：我的页系列规则在二级页一律不生效（见 MINE_PAGE_RULE_KEYS 注释）
             if (rule.key in MINE_PAGE_RULE_KEYS && curPageId != "main") return false
+            // ⭐ R180：我的页系列改用「只 alpha=0」+ setAlpha 守卫（见 installAlphaGuard）。
+            // 全链路：GONE 会改布局 ⇒ RecyclerView 下一帧重新 bind 该 item
+            //   ⇒ 新 View 再命中规则 ⇒ 实测「我的」页每秒 28 次全量重绑。
+            // alpha 不参与布局，实测挂载率能回到正常（99 次/秒）。
+            // 但宿主对这些元素有 alpha 动画，每帧 setAlpha(1) 会覆盖我们的 0
+            // ⇒ 额外 hook View.setAlpha，对已登记隐藏的视图强制保持 0。
+            if (rule.key in MINE_PAGE_RULE_KEYS) {
+                if (view.alpha != 0f) view.alpha = 0f
+                hiddenByUs[view] = rule
+                return true
+            }
             // ⭐ R175：拉锯断路器（见 ripCount 注释）
             val rip = (ripCount[view] ?: 0) + 1
             if (rip > 3) return false
