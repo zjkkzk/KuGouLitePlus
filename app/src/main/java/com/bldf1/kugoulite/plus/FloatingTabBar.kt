@@ -1107,8 +1107,16 @@ internal object FloatingTabBar {
                 wheelOrigLp?.width ?: ViewGroup.LayoutParams.WRAP_CONTENT,
                 wheelOrigLp?.height ?: ViewGroup.LayoutParams.WRAP_CONTENT
             )
-            lp.leftMargin = locW[0] - locD[0]
-            lp.topMargin = locW[1] - locD[1]
+            // ⭐ R172：原来用 getLocationOnScreen 差值定位。但胶囊此时可能已
+            // INVISIBLE/GONE 或尚未完成布局 ⇒ 坐标返回 0 ⇒ 转盘被甩到**屏幕
+            // 最上方中间**闪一下（用户实锤：打开「收藏/最近」时顶部中间闪转盘）。
+            // 转盘本来就在胶囊正中、也就是屏幕底部中间 ⇒ 显式贴底居中，不依赖原坐标。
+            val res = decor.resources
+            val bottomPad = (68 * res.displayMetrics.density).toInt()
+            lp.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
+            lp.leftMargin = 0
+            lp.topMargin = 0
+            lp.bottomMargin = bottomPad
             dv.addView(wheel, lp)
             // 恢复宿主给的状态，不强制 VISIBLE（R117：显隐由宿主决定）
             wheel.visibility = hostVis
