@@ -3648,7 +3648,10 @@ object UiCleaner {
             val plate = (sticker.parent as? View)?.takeIf { resourceName(it) == "iv5" }
                 ?: findSiblingId(sticker, "iv5", 3)
                 ?: return
-            val card = findSiblingId(plate, "iss", 3)
+            // ⭐ R187：iss 是 iv5 的**祖先**不是兄弟，findSiblingId 永远返回 null
+            // ⇒ 「底板下沿比白卡多 12px」的对齐逻辑从未执行 ⇒ 白卡右上露出补角
+            //（用户实锤「我的页 白卡补角」）。
+            val card = findAncestorId(plate, "iss", 6)
             // 底板下沿比白卡多 12px → 对齐，否则露一条 4dp 白边
             if (card != null && card.height > 0 && plate.height > 0) {
                 val want = (card.top + card.height - plate.top).coerceAtLeast(1)
@@ -3697,6 +3700,18 @@ object UiCleaner {
     }
 
     /** 在兄弟/近亲层级按 ID 名找视图（最多上溯 levels 层） */
+    /** ⭐ R187：向上找**祖先**（findSiblingId 只找兄弟，而白卡 iss 是 iv5 的祖先） */
+    private fun findAncestorId(from: View, idName: String, levels: Int): View? {
+        var node = from.parent as? View
+        var d = 0
+        while (node != null && d < levels) {
+            if (resourceName(node) == idName) return node
+            node = node.parent as? View
+            d++
+        }
+        return null
+    }
+
     private fun findSiblingId(from: View, idName: String, levels: Int): View? {
         var node = from.parent as? ViewGroup
         var depth = 0
