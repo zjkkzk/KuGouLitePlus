@@ -35,6 +35,8 @@ object Settings {
     const val KEY_UI_PLAY_BOOKMARK = "ui_play_bookmark"
     const val KEY_UI_WEEKLY_WELFARE = "ui_weekly_welfare"
     const val KEY_UI_PLAY_PUBLISH_TIP = "ui_play_publish_tip"
+    /** 播放页「随性分享」按钮（dq6/dq7 容器） */
+    const val KEY_UI_PLAY_SHARE_BTN = "ui_play_share_btn"
     /** 播放页歌词下方的「咱一起自律」频道入口（Round 51，默认隐藏） */
     const val KEY_UI_PLAY_DISCIPLINE = "ui_play_discipline"
     const val KEY_UI_SEARCH_AD = "ui_search_ad"

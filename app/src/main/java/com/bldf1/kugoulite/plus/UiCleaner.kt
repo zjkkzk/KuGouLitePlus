@@ -441,6 +441,12 @@ object UiCleaner {
             listOf(), listOf(), idNames = listOf("c6a")),
         Rule(Settings.KEY_UI_VIP_LOOK_BAR, "VIP去看看残条",
             listOf(), listOf(), idNames = listOf("f96")),
+        // 播放页「随性分享」按钮（用户要求移除，2026-10-22）。
+        // 结构：dq6(TextView 文本"随性分享") → dq4 → dq7(按钮容器)，
+        // 连父藏 2 层落到 dq7。用文本 + id 双保险。
+        Rule(Settings.KEY_UI_PLAY_SHARE_BTN, "随性分享按钮",
+            listOf(), listOf("随性分享"), idNames = listOf("dq6"),
+            hideParentLevels = 2),
         Rule(Settings.KEY_UI_PLAY_PUBLISH_TIP, "发布提示",
             listOf(), listOf("使用此音乐发布", "使用此应用发布")),
         Rule(Settings.KEY_UI_CHANNEL, "频道推荐区块",
