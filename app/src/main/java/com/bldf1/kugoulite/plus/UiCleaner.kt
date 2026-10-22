@@ -452,8 +452,12 @@ object UiCleaner {
         // ⇒ 该规则整体爬升，而 bsd 的父是整张头像卡 ⇒ 整页内容被清空。
         Rule(Settings.KEY_UI_MINE_FREE_BAR, "我的页免费听条",
             listOf(), listOf(), idNames = listOf("bsd")),
-        Rule(Settings.KEY_UI_MINE_EARN_TAB, "我的页赚钱tab",
-            listOf(), listOf(), idNames = listOf("dkc"), maxYRatio = 0.15f),
+        // R215 已禁用：dkc 实为发现页顶栏「乐库」tab（MainTopImageView 三个 tab
+        // 跨页共用一组 id：dk8=发现|我的、dkd=免费听|赚钱、dkc=乐库）。
+        // R204 的 maxYRatio=0.15 没命中「我的」页底部 tab（y=0.93），
+        // 却命中了发现页「乐库」（y=0.064）——用户说的「乐库被误伤」由此而来。
+        // Rule(Settings.KEY_UI_MINE_EARN_TAB, ...) 作废。
+
         // R203（5.3.1 适配）：头像卡信息区结构变为
         //   ipc("Willie") / c6d(等级徽章底) / iuk>ium("Lv.1") /
         //   ivl(超级徽章底) / ivn(超级图标)
