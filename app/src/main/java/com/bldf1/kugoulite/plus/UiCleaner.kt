@@ -2258,6 +2258,18 @@ object UiCleaner {
                     view.visibility = View.INVISIBLE
                     return
                 }
+                // ⭐ R201：免费听图标底板 dg1 —— 它**不能 GONE**（GONE 会让发现页
+                // 整页背景渐变消失，见 neutralizeFreeListenPlate 注释），只能 alpha=0。
+                // 但原来 alpha 是在 scan/复核时才设的 ⇒ 已经画过一帧 alpha=1
+                // ⇒ 用户看到发现页右上角"免"图标闪一下。
+                // 这里在 setId 阶段就置 0，早于绘制。
+                if (Settings.isFeature(view.context, Settings.KEY_UI_FREE_LISTEN_ICON) &&
+                    resourceName(view) == "dg1"
+                ) {
+                    if (view.alpha != 0f) view.alpha = 0f
+                    neutralizedPlates[view] = true
+                    return
+                }
             } catch (_: Throwable) {
             }
         }
