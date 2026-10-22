@@ -1957,6 +1957,9 @@ object UiCleaner {
     // （会员角标/赚钱入口/签到条…），宿主发现后销毁重建那块 UI、新 View 再命中
     // ⇒ 实测每秒 1148 次视图挂载、「我的」→「最近」转场被拖到 10s 以上。
     // 现在用 curPageId（R168 基建）判断：只要不在 main 页，这批规则一律不生效。
+    /** 明确的二级页 id（这些页面没有「我的页」那些推广元素） */
+    private val SECONDARY_PAGE_IDS = setOf("fav", "recent", "local", "bought", "profile")
+
     private val MINE_PAGE_RULE_KEYS = setOf(
         Settings.KEY_UI_MINE_BADGE,
         Settings.KEY_UI_MINE_EARN,
@@ -2080,7 +2083,10 @@ object UiCleaner {
      * 避免其它 ViewPager（Banner/轮播）翻页污染页面身份判定。
      */
     @Volatile
-    private var mainPageIndex: Int = 0
+    // ⭐ R184：默认 -1 = 未知。原来默认 0（=discovery），若「我的」页是启动时就在
+    // 那一页（没有翻页动作、mainPageIndex 从未被写入），curPageId 就会算成 discovery
+    // ⇒ R176 的「我的页系列规则只在 main 生效」把它们全部拦掉，净化大面积失效。
+    private var mainPageIndex: Int = -1
 
     @Volatile
     private var mainPageKnown: Boolean = false
@@ -2268,8 +2274,17 @@ object UiCleaner {
                 val tag = activePageTag(a)
                 if (tag == "?") {
                     // 主 pager：0=发现 / 1=我的
-                    if (mainPageIndex == 1) "main" else "discovery"
+                    if (mainPageIndex < 0) "" else if (mainPageIndex == 1) "main" else "discovery"
                 } else when {
+                    // ⭐ R184：主 pager 两页的 Fragment 都是 MainFragmentContainer
+                    // （实测日志：? -> MainFragmentContainer），原来没这个分支 ⇒
+                    // curPageId 变成 frag:MainFragmentContainer ⇒ R176 的
+                    // 「我的页系列只在 main 生效」把它们全拦掉 ⇒ 净化大面积失效。
+                    // 用 minePageOnScreen 几何判定区分「发现」与「我的」。
+                    tag.contains("MainFragmentContainer") -> {
+                        val d = a.window?.decorView
+                        if (d != null && minePageOnScreen(d)) "main" else "discovery"
+                    }
                     tag.contains("FavMain") -> "fav"
                     tag.contains("HistoryMain") -> "recent"
                     tag.contains("NewestUserCenter") -> "profile"
@@ -3317,7 +3332,10 @@ object UiCleaner {
     private fun hideByIdRule(view: View, rule: Rule, src: String = ""): Boolean {
         return try {
             // ⭐ R176：我的页系列规则在二级页一律不生效（见 MINE_PAGE_RULE_KEYS 注释）
-            if (rule.key in MINE_PAGE_RULE_KEYS && curPageId != "main") return false
+            // ⭐ R185：**只在明确的二级页**拦截，其余（main/discovery/未知/frag:*）一律放行。
+            // 之前用「!= main」反向判断，一旦页面识别不准（如 tag=MainFragmentContainer
+            // 未能判定成 main）就会把「我的」页自己整片拦掉 ⇒ 净化大面积失效。
+            if (rule.key in MINE_PAGE_RULE_KEYS && curPageId in SECONDARY_PAGE_IDS) return false
             // ⭐ R175：拉锯断路器（见 ripCount 注释）
             val rip = (ripCount[view] ?: 0) + 1
             if (rip > 3) return false
@@ -3454,6 +3472,9 @@ object UiCleaner {
      * 幂等：每次复核按当前布局重算；两视图需已布局（left>0）且同父；关闭开关时由
      * [restoreRule] 归零。
      */
+    @Volatile
+    private var slotRetryScheduled = false
+
     private fun fillFreeListenSlot(plate: View) {
         val parent = plate.parent as? ViewGroup ?: return
         var search: View? = null
@@ -3462,8 +3483,24 @@ object UiCleaner {
             if (c !== plate && resourceName(c) == "dlw") { search = c; break }
         }
         val s = search ?: return
-        // 未布局（left=0）时等下一次多帧复核；不同父时坐标不可比，直接放弃
-        if (plate.left <= 0 || s.left <= 0) return
+        // 未布局（left=0）时重试：原来直接 return 等下一轮复核，
+        // 但复核只在命中 ID 的视图上排（dg1 不在规则 id 里，不会复核）
+        // ⇒ 顶栏空槽永远补不上（用户实锤「发现页顶栏空白占位」）。
+        if (plate.left <= 0 || s.left <= 0) {
+            if (!slotRetryScheduled) {
+                slotRetryScheduled = true
+                mainHandler.postDelayed({
+                    slotRetryScheduled = false
+                    try {
+                        if (plate.isAttachedToWindow && s.isAttachedToWindow) {
+                            fillFreeListenSlot(plate)
+                        }
+                    } catch (_: Throwable) {
+                    }
+                }, 150)
+            }
+            return
+        }
         val shift = (plate.left - s.left).toFloat()
         if (shift == 0f || s.translationX == shift) return
         s.translationX = shift
