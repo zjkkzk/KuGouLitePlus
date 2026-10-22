@@ -409,7 +409,8 @@ object UiCleaner {
         // 用户实锤）；apj=昵称右侧「会员中心」图标（KGTransImageView，desc
         // 命中但不走 setText/TextView 分支，必须 ID 制导）
         Rule(Settings.KEY_UI_MINE_MEMBER_BADGE, "我的页会员角标",
-            listOf(), listOf(), idNames = listOf("c6u", "apj")),
+            // R206: c6x = 5.3.1 头像卡右上角蓝色 V 角标(1099-1166,314-415)
+            listOf(), listOf(), idNames = listOf("c6u", "apj", "c6x")),
         // 账号徽章：c6b=Lv.1 等级容器（iue/iug），ivf=「勋章」胶囊
         // ⭐ R191：撤销 R188 的 hideParentLevels=1 —— 连父藏会连整块信息区
         //（昵称 Willie / Lv.1 / 超级徽章都在同一个父容器里）一起 GONE，
