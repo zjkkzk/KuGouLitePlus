@@ -1477,7 +1477,11 @@ object UiCleaner {
             // "私人专属好歌"等区块头共用槽位），歌曲推荐语是 b5w。feed 推荐
             // 语可能含关键词（"免费听新歌"），无门禁会误伤整个推荐卡 item
             // （整卡隐藏 GONE+height=0 → feed 底部大片空缺+分页 footer 错乱）
-            if (rn != "b6b") return false
+            // ⭐ R192：原来写死 rn=="b6b"（发现页区块标题槽位）。设置页的区块标题
+            // ID 是 "title" ⇒ 设置页福利规则永远过不了这个门禁、一次都没执行。
+            // 放宽为 b6b 或 title；误伤风险由 textKeywords 兜底（只有命中关键词的
+            // 标题才会走到这里，如「福利中心」而非「账号和绑定设置」）。
+            if (rn != "b6b" && rn != "title") return false
             var did = false
             (view as? TextView)?.let {
                 did = if (rule.useCardHide) hideCardWithRecheck(it, rule)
