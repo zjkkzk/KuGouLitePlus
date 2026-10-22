@@ -61,6 +61,8 @@ object Settings {
     const val KEY_UI_MINE_EARN_TAB = "ui_mine_earn_tab"
     /** 「我的」页免费听整块（5.3.1: bsd，含图标+文字+蓝线） */
     const val KEY_UI_MINE_FREE_BAR = "ui_mine_free_bar"
+    /** 发现页顶栏「免费听」tab（5.3.1 新增: dkd） */
+    const val KEY_UI_DISCOVERY_FREE_TAB = "ui_discovery_free_tab"
     const val KEY_UI_LOGIN_GUIDE = "ui_login_guide"
     const val KEY_UI_FREE_LISTEN_ENTRY = "ui_free_listen_entry"
     const val KEY_UI_FREE_LISTEN_ICON = "ui_free_listen_icon"
