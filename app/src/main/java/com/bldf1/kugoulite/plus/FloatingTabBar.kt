@@ -1112,7 +1112,10 @@ internal object FloatingTabBar {
             // 最上方中间**闪一下（用户实锤：打开「收藏/最近」时顶部中间闪转盘）。
             // 转盘本来就在胶囊正中、也就是屏幕底部中间 ⇒ 显式贴底居中，不依赖原坐标。
             val res = decor.resources
-            val bottomPad = (68 * res.displayMetrics.density).toInt()
+            // R197: 68dp(=204px @dpi3) 偏大，实测二级页转盘中心比原生底栏低约 104px
+            // （原生转盘中心 y~2570，68dp 时约 2466）=> 用户看到"二级页转盘位置
+            // 和发现页/我的页不一样"。按实测改成 33dp(~100px)，与胶囊内位置对齐。
+            val bottomPad = (33 * res.displayMetrics.density).toInt()
             lp.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
             lp.leftMargin = 0
             lp.topMargin = 0
