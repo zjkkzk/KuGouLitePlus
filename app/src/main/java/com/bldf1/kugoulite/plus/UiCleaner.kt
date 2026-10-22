@@ -2228,6 +2228,22 @@ object UiCleaner {
         val hasId = view.id != View.NO_ID
         val maybeFab = isFabClass(view.javaClass.name)
         if (!hasId && !maybeFab) return
+        // R200: 播放页书签容器 dt7 必须在 setId / 挂载瞬间就设 INVISIBLE。
+        // 原来只有 scan 的专门分支（几秒后的周期扫描才跑到）=> 日志实证
+        // "已绘制=是"，书签位先画出来再消失（用户实锤：书签图标几秒后才消失）。
+        // R140 的 addView hook 也没拦住（宿主用别的挂载路径）。
+        if (hasId) {
+            try {
+                if (view.visibility == View.VISIBLE &&
+                    Settings.isFeature(view.context, Settings.KEY_UI_PLAY_BOOKMARK) &&
+                    resourceName(view) == "dt7"
+                ) {
+                    view.visibility = View.INVISIBLE
+                    return
+                }
+            } catch (_: Throwable) {
+            }
+        }
         // ⚠️ 死循环断路器（真机 10-12 实锤）：页面门禁规则（requireMinePage）
         // 会被"页面切换恢复"和"可见即隐藏"来回拉扯——同一视图被隐藏 40+ 次
         // （乐库 tab 反复 setVisibility(VISIBLE) → 隐藏 → 恢复 → …）。
