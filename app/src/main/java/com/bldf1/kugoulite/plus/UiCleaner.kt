@@ -994,7 +994,8 @@ object UiCleaner {
                 if (child != null && child.id != android.view.View.NO_ID &&
                     child.visibility == android.view.View.VISIBLE &&
                     Settings.isFeature(child.context, Settings.KEY_UI_PLAY_BOOKMARK) &&
-                    child.resources.getResourceEntryName(child.id) == "dt7"
+                    (child.resources.getResourceEntryName(child.id) == "dt7" ||
+                        child.resources.getResourceEntryName(child.id) == "elt")
                 ) {
                     child.visibility = android.view.View.INVISIBLE
                 }
@@ -1408,7 +1409,9 @@ object UiCleaner {
         val text = if (view is TextView) extractText(view) else null
         // ⭐ R139：播放页书签容器 dt7 用 INVISIBLE 隐藏 —— 占位保留，标题栏两侧保持对称，
         // 标题自然居中（用 GONE 会少一格，标题右移；用 translationX 补偿会压制切歌动画）。
-        if (rn == "dt7" && Settings.isFeature(view.context, Settings.KEY_UI_PLAY_BOOKMARK)) {
+        if ((rn == "dt7" || rn == "elt") &&
+            Settings.isFeature(view.context, Settings.KEY_UI_PLAY_BOOKMARK)
+        ) {
             if (view.visibility != View.INVISIBLE) view.visibility = View.INVISIBLE
             // 切歌时宿主会重建 dt7（新实例），scan 遍历到之前会闪 1~2 帧 ⇒ 挂 preDraw，
             // 一旦创建出来就每帧钉住 INVISIBLE（只改 visibility，不影响动画）。
@@ -2281,6 +2284,8 @@ object UiCleaner {
     private fun preHideSelf(view: View, fromVisibility: Boolean = false, fromMount: Boolean = false) {
         // ⭐ R167：同上，清单类页面整页跳过
         currentActivity?.get()?.let { if (isCleanListPage(it)) return }
+        // ⭐ R212：5.3.1 的书签容器是 elt（1062-1175,126-239，图标本体 cdy 1071-1166），
+        // 5.3.0 是 dt7。两个 id 一起处理，保证双版本都零闪现。
         // ⭐ R200：播放页书签容器 dt7 —— 在 **setId 阶段**就钉成 INVISIBLE。
         // 原来只在 scan 里处理，而 scan 跑起来时视图已经画到屏幕上
         //（日志实证 已绘制=是）⇒ 用户看到书签图标闪几秒才消失。
@@ -2289,7 +2294,7 @@ object UiCleaner {
         if (view.id != View.NO_ID) {
             try {
                 if (Settings.isFeature(view.context, Settings.KEY_UI_PLAY_BOOKMARK) &&
-                    resourceName(view) == "dt7"
+                    (resourceName(view) == "dt7" || resourceName(view) == "elt")
                 ) {
                     if (view.visibility != View.INVISIBLE) view.visibility = View.INVISIBLE
                     headerFixers[view] = true
@@ -2312,7 +2317,7 @@ object UiCleaner {
             try {
                 if (view.visibility == View.VISIBLE &&
                     Settings.isFeature(view.context, Settings.KEY_UI_PLAY_BOOKMARK) &&
-                    resourceName(view) == "dt7"
+                    (resourceName(view) == "dt7" || resourceName(view) == "elt")
                 ) {
                     view.visibility = View.INVISIBLE
                     return
