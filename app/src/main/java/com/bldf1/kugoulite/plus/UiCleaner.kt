@@ -336,12 +336,11 @@ object UiCleaner {
         // 酷狗商城/唱片店/听歌免流量，共 6 个引流入口（uiautomator 实录）。
         // 每行是独立的 g6r 容器，用 sectionMode 连标题一起藏。
         Rule(Settings.KEY_UI_SETTINGS_WELFARE, "设置页福利区块",
-            // R213：补「会员中心」—— 5.3.1 设置页福利区新增入口，之前漏网。
-            // 实测两处结构（模块停用原生 dump）：
-            //   设置页: title→RelativeLayout→g6v→g6u(整行)　连父3层=整行 ✓
-            //   我的页: in1→iu2→isw(整行，含左格「福利与活动」)　连父3层=整行 ✓
-            // ⇒ 同一条规则连父3层在两处都正好落到整行，无需额外门禁。
-            listOf(), listOf("会员中心", "福利中心", "活动中心", "鹅票票", "酷狗商城", "唱片店", "听歌免流量"),
+            // ⚠️ R213 曾把「会员中心」加进本规则关键词，结果**整个「我的」页被清空**。
+            // 原因：uiautomator 看到的祖先链是**布局稳定后**的，而 setId 阶段父链尚未建完，
+            // climbParent 会爬到当时能到达的更高层容器（可能是整块列表）⇒ 连父3层失控。
+            // ⇒ 已回滚。「会员中心」要处理必须用独立规则 + parentIdNames 门禁（父先 setId）。
+            listOf(), listOf("福利中心", "活动中心", "鹅票票", "酷狗商城", "唱片店", "听歌免流量"),
             // ⭐ R194：不用 sectionMode（它的 useCardHide 走的是发现页 feed 的
             // hideCardWithRecheck，在设置页 ListView 结构上返回 false）。
             // 设置页结构：title → RelativeLayout → g6s → g6r（行容器），
@@ -729,6 +728,13 @@ object UiCleaner {
     private val ID_RULE_RECHECK_TICKS = longArrayOf(50, 150, 300, 600, 1000)
 
     // ID→规则 预索引（挂载钩子热路径 O(1) 查表）
+    // R214：播放页书签容器的所有已知 id。
+    //   5.3.0           : dt7
+    //   5.3.1 已收藏态   : elt(FrameLayout) / cdy(ImageView)
+    //   5.3.1 未收藏态   : dt_(ViewGroup)   / dta(ImageView)
+    // 三套实现共用同一位置(1062-1175,126-239)，按歌曲收藏状态切换 ⇒ 必须全部覆盖。
+    private val BOOKMARK_IDS = setOf("dt7", "elt", "cdy", "dt_", "dta")
+
     private val idRuleMap: Map<String, List<Rule>> = buildMap {
         for (rule in RULES) {
             for (id in rule.idNames) {
@@ -999,8 +1005,7 @@ object UiCleaner {
                 if (child != null && child.id != android.view.View.NO_ID &&
                     child.visibility == android.view.View.VISIBLE &&
                     Settings.isFeature(child.context, Settings.KEY_UI_PLAY_BOOKMARK) &&
-                    (child.resources.getResourceEntryName(child.id) == "dt7" ||
-                        child.resources.getResourceEntryName(child.id) == "elt")
+                    child.resources.getResourceEntryName(child.id) in BOOKMARK_IDS
                 ) {
                     child.visibility = android.view.View.INVISIBLE
                 }
@@ -1414,7 +1419,7 @@ object UiCleaner {
         val text = if (view is TextView) extractText(view) else null
         // ⭐ R139：播放页书签容器 dt7 用 INVISIBLE 隐藏 —— 占位保留，标题栏两侧保持对称，
         // 标题自然居中（用 GONE 会少一格，标题右移；用 translationX 补偿会压制切歌动画）。
-        if ((rn == "dt7" || rn == "elt") &&
+        if (rn != null && rn in BOOKMARK_IDS &&
             Settings.isFeature(view.context, Settings.KEY_UI_PLAY_BOOKMARK)
         ) {
             if (view.visibility != View.INVISIBLE) view.visibility = View.INVISIBLE
@@ -2299,7 +2304,7 @@ object UiCleaner {
         if (view.id != View.NO_ID) {
             try {
                 if (Settings.isFeature(view.context, Settings.KEY_UI_PLAY_BOOKMARK) &&
-                    (resourceName(view) == "dt7" || resourceName(view) == "elt")
+                    resourceName(view) in BOOKMARK_IDS
                 ) {
                     if (view.visibility != View.INVISIBLE) view.visibility = View.INVISIBLE
                     headerFixers[view] = true
@@ -2322,7 +2327,7 @@ object UiCleaner {
             try {
                 if (view.visibility == View.VISIBLE &&
                     Settings.isFeature(view.context, Settings.KEY_UI_PLAY_BOOKMARK) &&
-                    (resourceName(view) == "dt7" || resourceName(view) == "elt")
+                    resourceName(view) in BOOKMARK_IDS
                 ) {
                     view.visibility = View.INVISIBLE
                     return
