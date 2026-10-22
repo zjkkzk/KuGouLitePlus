@@ -1161,11 +1161,15 @@ internal object FloatingTabBar {
         val bar = snap.bar ?: return
         val stack = findFragmentStack(snap) ?: return
         val cover = overlayCovering(stack)
+        // R198（方案A：保持原生）：二级页**不再隐藏胶囊**。
+        // 原生状态下二级页底部本来就带完整胶囊（发现 + 转盘 + 我的），
+        // 我们之前"隐藏胶囊 + 把转盘摘到 DecorView 重新定位"属于多余改造，
+        // 导致转盘位置永远对不上（68dp 偏低、33dp 偏高，只能靠猜）。
         if (cover != overlayHidden) {
             overlayHidden = cover
-            bar.visibility = if (cover) View.INVISIBLE else View.VISIBLE
+            bar.visibility = View.VISIBLE
             log(always = true) {
-                if (cover) "二级页盖顶：隐藏胶囊" else "回到主页：恢复胶囊"
+                if (cover) "二级页盖顶：胶囊保持显示(方案A)" else "回到主页：恢复胶囊"
             }
         }
 
@@ -1179,6 +1183,11 @@ internal object FloatingTabBar {
             lastTopRef = null
             return
         }
+        // R198（方案A）：二级页不再把转盘摘到 DecorView —— 胶囊仍在，
+        // 转盘留在原位即为原生位置。若之前摘过，先装回去。
+        if (detachedWheel != null) reattachWheel(snap)
+        lastTopRef = null
+        return
         val top = topPushContainer(stack)
         if (top === lastTopRef?.get()) return
         val topName = top?.javaClass?.simpleName ?: "?"
