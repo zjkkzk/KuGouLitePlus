@@ -358,8 +358,21 @@ object UiCleaner {
             listOf("LoginGuide", "GuideLogin", "LoginTip"), listOf("登录后畅听", "立即登录")),
         Rule(Settings.KEY_UI_FREE_LISTEN_ENTRY, "免费听入口",
             listOf(), listOf(), idNames = listOf("dka")),
+        // R203（5.3.1 适配）：顶栏右侧图标位 5.3.1 变为 dg3(搜索)/f5l(免图标)/
+        // c69(信息中心)/f5m(设置)。5.3.0 的 dg0 保留以兼容旧版。
+        // 注意 5.3.1 的页面也会同时命中 dg3/c69/f5m 这些新 id，但本规则只列 dg0/f5l，
+        // 不会误伤搜索/信息中心/设置图标。
         Rule(Settings.KEY_UI_FREE_LISTEN_ICON, "免费听图标",
-            listOf(), listOf(), idNames = listOf("dg0"), maxYRatio = 0.12f),
+            // R205: 去掉 maxYRatio=0.12 —— 它靠 getLocationOnScreen，setId 阶段坐标为 0
+            // ⇒ 门禁失败 ⇒ 等 scan ⇒ 「免」图标复活（R203 加了 f5l 但被旧门禁挡住）。
+            // dg0/f5l 都是顶栏专属 id，无需额外门禁。
+            // R205b: 坐标比对修正 —— 5.3.1 顶栏右侧四图标依次是
+            //   f5l(794-920)=搜索 / c69(932-1058)=免 / f5m(1070-1196)=设置
+            // 所以「免」是 c69，f5l 是搜索图标（上一版误把搜索藏了）。
+            // R205c: 5.3.1 的 c69 外层还有一个 RelativeLayout(926-1064) 圆形容器，
+            // 只藏 c69 会留一个空圆圈 ⇒ 连父 1 层。（dg0 在 5.3.0 无此问题，
+            // 但连父对它是幂等无害的：其父也是圆胶囊容器。）
+            listOf(), listOf(), idNames = listOf("dg0", "c69"), hideParentLevels = 1),
             // ⚠️ 不再连父藏 dg1（2026-10-15 真机 A/B 实锤）：dg1(HnVisualEffectLayout)
             // 虽然只有 84×84（免图标位），但酷狗效果引擎内部联动——dg1 被藏后
             // **发现页整页背景渐变（含顶栏）消失变纯白**（用户报「顶栏背景不见了」）。
@@ -402,8 +415,18 @@ object UiCleaner {
         //（昵称 Willie / Lv.1 / 超级徽章都在同一个父容器里）一起 GONE，
         // 用户实锤「怎么把我的昵称也隐藏了」。
         // 只藏 ivf（徽章底容器）本身，不往上爬。
+        // R204（5.3.1 适配）：「我的」页顶部「赚钱」tab。
+        // 5.3.1 顶栏左侧是两个图片 tab：dk8(54-156)="我的"、dkc(216-318)="赚钱"，
+        // 只藏 dkc（保留"我的"）。它是 ImageView，无文本无 desc，只能按 id。
+        Rule(Settings.KEY_UI_MINE_EARN_TAB, "我的页赚钱tab",
+            listOf(), listOf(), idNames = listOf("dkc"), maxYRatio = 0.15f),
+        // R203（5.3.1 适配）：头像卡信息区结构变为
+        //   ipc("Willie") / c6d(等级徽章底) / iuk>ium("Lv.1") /
+        //   ivl(超级徽章底) / ivn(超级图标)
+        // 5.3.0 的 c6b/ivf 保留以兼容旧版。
+        // ⚠️ 只列徽章自身容器，不能连父藏（R191 血泪：会连昵称一起藏）。
         Rule(Settings.KEY_UI_MINE_MEDAL, "我的页等级勋章",
-            listOf(), listOf(), idNames = listOf("c6b", "ivf")),
+            listOf(), listOf(), idNames = listOf("c6b", "ivf", "c6d", "ivl", "ivn")),
         // 我的页右上角搜索图标（Round 26，用户要求移除）：apg 是我的页顶栏
         // 四图标容器（dg0/f5i/c67/f5j = 免|搜索|信息中心|设置），只摘 f5i。
         // ⚠️ 用**父容器 ID 门禁**而非页面门禁：父容器在挂载瞬间就确定 → 绘制
