@@ -381,11 +381,12 @@ object UiCleaner {
         Rule(Settings.KEY_UI_MINE_MEMBER_BADGE, "我的页会员角标",
             listOf(), listOf(), idNames = listOf("c6u", "apj")),
         // 账号徽章：c6b=Lv.1 等级容器（iue/iug），ivf=「勋章」胶囊
-        // ⭐ R188：c6b 藏了会立刻被"分离还原"（列表 detach/rebind），而 ivf（父容器，
-        // 12,4-110,79 的圆角徽章底）从来没进过隐藏路径 ⇒ 徽章一直显示。
-        // 改为连父藏：藏 ivf 这一层容器，避免只 GONE 内部子视图。
+        // ⭐ R191：撤销 R188 的 hideParentLevels=1 —— 连父藏会连整块信息区
+        //（昵称 Willie / Lv.1 / 超级徽章都在同一个父容器里）一起 GONE，
+        // 用户实锤「怎么把我的昵称也隐藏了」。
+        // 只藏 ivf（徽章底容器）本身，不往上爬。
         Rule(Settings.KEY_UI_MINE_MEDAL, "我的页等级勋章",
-            listOf(), listOf(), idNames = listOf("c6b", "ivf"), hideParentLevels = 1),
+            listOf(), listOf(), idNames = listOf("c6b", "ivf")),
         // 我的页右上角搜索图标（Round 26，用户要求移除）：apg 是我的页顶栏
         // 四图标容器（dg0/f5i/c67/f5j = 免|搜索|信息中心|设置），只摘 f5i。
         // ⚠️ 用**父容器 ID 门禁**而非页面门禁：父容器在挂载瞬间就确定 → 绘制
