@@ -332,8 +332,12 @@ object UiCleaner {
         // 酷狗商城/唱片店/听歌免流量，共 6 个引流入口（uiautomator 实录）。
         // 每行是独立的 g6r 容器，用 sectionMode 连标题一起藏。
         Rule(Settings.KEY_UI_SETTINGS_WELFARE, "设置页福利区块",
-            listOf(), listOf("福利中心", "活动中心", "鹅票票", "酷狗商城", "唱片店"),
-            sectionMode = true, useCardHide = true),
+            listOf(), listOf("福利中心", "活动中心", "鹅票票", "酷狗商城", "唱片店", "听歌免流量"),
+            // ⭐ R194：不用 sectionMode（它的 useCardHide 走的是发现页 feed 的
+            // hideCardWithRecheck，在设置页 ListView 结构上返回 false）。
+            // 设置页结构：title → RelativeLayout → g6s → g6r（行容器），
+            // 连父藏 3 层正好落到 g6r 这一行。
+            hideParentLevels = 3),
         Rule(Settings.KEY_UI_INVITE, "邀请提示",
             listOf("InviteTip", "InviteView"), listOf("邀请好友", "三个月会员", "邀好友", "组队领"),
             // ⚠️ ID 门禁（真机实锤 10-12）：feed 推荐语槽位 b5w 的文案可能包含
@@ -1383,6 +1387,10 @@ object UiCleaner {
         }
 
         // ③ 文本关键词规则（预筛后匹配；已在①处理过的规则不重复跑）
+        // ⭐ R193 诊断：设置页福利规则为何不触发
+        if (text != null && text.contains("福利")) {
+            ModuleLog.log("R193 命中福利文本 text=$text rn=$rn depth=$depth promo=${mayBePromo(text)} stop=$stop hidden=${hidden[0]}")
+        }
         if (!stop && text != null && TEXT_SCAN_RULES.isNotEmpty() && mayBePromo(text)) {
             for (i in TEXT_SCAN_RULES.indices) {
                 if (hidden[0] > 200) return
