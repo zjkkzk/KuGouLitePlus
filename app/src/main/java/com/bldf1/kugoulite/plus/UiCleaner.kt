@@ -529,9 +529,18 @@ object UiCleaner {
         Rule(Settings.KEY_UI_FREE_LISTEN_BLOCK, "免费听区块",
             listOf(), listOf("免费听"), sectionMode = true, useCardHide = true,
             excludeIdNames = listOf("dka")),
-        // R213 已回滚：b7g 是**整个信息流容器**（不是「免费听」区块）——
-        // 藏它后发现页内容全空。信息流内「免费听」区块需另找更内层的容器
-        //（b6d/ym 的共同父，比 b7g 再往下一两层），待查。
+        // R216：发现页信息流「免费听」区块。
+        // dump 实测祖先链：b6d("免费听" 54-207,1701-1797) 与 ym("去创作")
+        // 的最近公共父是一个**匿名 View** [0,1701][1220,2418]（高 717px，
+        // 即区块本体；b7g [0,273][1220,2712] 是整个 feed，不能碰）。
+        // 匿名父没有 id，但其子节点 bln（标题行 [0,1701][908,1797]）有 id
+        // ⇒ 用 bln + hideParentLevels=1 正好落到匿名父。
+        // bounds 已核对：匿名父(高717) 只包住该区块，不是 feed。
+        // R216 已回滚：bln + hideParentLevels=1 造成顶部大块空白 ——
+        // bln 是通用 id（红心Radio 区等处也复用），连父藏误伤其它区块。
+        // 信息流「免费听」区块的正确姿势是**文本规则 + sectionMode**（5.3.0 做法），
+        // 但 5.3.1 下 sectionMode 未命中（匿名父无 id，引擎爬升逻辑需查），
+        // 需要专门调试引擎的 sectionMode 在 5.3.1 的行为，留待下次。
         Rule(Settings.KEY_UI_DISCOVER_BANNER_SLOT, "发现页Banner槽位",
             listOf(), listOf(), idNames = listOf("ela")),
     )
