@@ -59,6 +59,8 @@ object Settings {
     const val KEY_UI_SETTINGS_WELFARE = "ui_settings_welfare"
     /** 「我的」页顶部「赚钱」tab（5.3.1: dkc 图片 tab） */
     const val KEY_UI_MINE_EARN_TAB = "ui_mine_earn_tab"
+    /** 「我的」页免费听整块（5.3.1: bsd，含图标+文字+蓝线） */
+    const val KEY_UI_MINE_FREE_BAR = "ui_mine_free_bar"
     const val KEY_UI_LOGIN_GUIDE = "ui_login_guide"
     const val KEY_UI_FREE_LISTEN_ENTRY = "ui_free_listen_entry"
     const val KEY_UI_FREE_LISTEN_ICON = "ui_free_listen_icon"

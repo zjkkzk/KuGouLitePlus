@@ -419,6 +419,11 @@ object UiCleaner {
         // R204（5.3.1 适配）：「我的」页顶部「赚钱」tab。
         // 5.3.1 顶栏左侧是两个图片 tab：dk8(54-156)="我的"、dkc(216-318)="赚钱"，
         // 只藏 dkc（保留"我的"）。它是 ImageView，无文本无 desc，只能按 id。
+        // R207: 5.3.1 免费听整块 bsd(54-1166, 702-882，含图标+文字+蓝线)。
+        // ⚠️ 必须**单独一条规则、不连父**：曾把它并进「免费听图标」(带 hideParentLevels=1)
+        // ⇒ 该规则整体爬升，而 bsd 的父是整张头像卡 ⇒ 整页内容被清空。
+        Rule(Settings.KEY_UI_MINE_FREE_BAR, "我的页免费听条",
+            listOf(), listOf(), idNames = listOf("bsd")),
         Rule(Settings.KEY_UI_MINE_EARN_TAB, "我的页赚钱tab",
             listOf(), listOf(), idNames = listOf("dkc"), maxYRatio = 0.15f),
         // R203（5.3.1 适配）：头像卡信息区结构变为
