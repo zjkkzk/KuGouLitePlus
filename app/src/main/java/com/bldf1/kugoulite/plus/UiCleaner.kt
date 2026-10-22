@@ -1594,7 +1594,10 @@ object UiCleaner {
             // ID 是 "title" ⇒ 设置页福利规则永远过不了这个门禁、一次都没执行。
             // 放宽为 b6b 或 title；误伤风险由 textKeywords 兜底（只有命中关键词的
             // 标题才会走到这里，如「福利中心」而非「账号和绑定设置」）。
-            if (rn != "b6b" && rn != "title") return false
+            // R217：5.3.1 信息流区块标题的 id 是 b6d（dump 实测：
+            // b6d("免费听" 54-207,1701-1797) 挂在 bln(标题行) 下，匿名父为区块本体）。
+            // 误伤风险由 textKeywords 兜底（只有命中关键词的标题才会走到这里）。
+            if (rn != "b6b" && rn != "title" && rn != "b6d") return false
             var did = false
             (view as? TextView)?.let {
                 did = if (rule.useCardHide) hideCardWithRecheck(it, rule)
@@ -4004,10 +4007,20 @@ object UiCleaner {
                 itemRoot = node
                 node = node.parent as? ViewGroup
             }
-            val target = itemRoot ?: return false
-            if (target === textView.rootView) return false
-            val p = target.parent as? View
-            if (p == null || !isRecycleContainer(p)) return false
+            // ⭐ R218：5.3.1 的 feed 区块根是**无 id 匿名 View**，其父 b7g 是普通
+            // ViewGroup（不是 RecyclerView）⇒ 老门禁 isRecycleContainer 直接拒绝，
+            // 导致「标题藏了、区块内容还在」（实测：VIP免费听区块只剩卡片）。
+            // 先按原逻辑挑 item 根；挑不到再用 bounds 兜底。
+            var picked: ViewGroup? = itemRoot
+            if (picked != null) {
+                if (picked === textView.rootView) picked = null
+                else {
+                    val pp = picked.parent as? View
+                    if (pp == null || !isRecycleContainer(pp)) picked = null
+                }
+            }
+            if (picked == null) picked = pickBlockAncestorByBounds(textView)
+            val target = picked ?: return false
             // ⚠️ R59：这里**只能用 INVISIBLE，不能用 GONE**。
             // 真机实锤（20:36 日志）：设成 GONE 后 ~14ms 内 RecyclerView 就把该 item
             // 从窗口分离（onDetachedFromWindow）⇒ onViewDetached 触发「分离还原」把
@@ -4036,6 +4049,42 @@ object UiCleaner {
             ModuleLog.log("UI净化[${rule.name}] 隐藏(整卡·item根): ${target.javaClass.simpleName} INVISIBLE+height=0")
             return true
         } catch (_: Exception) { return false }
+    }
+
+    /**
+     * ⭐ R218：按 bounds 选「区块级」祖先（5.3.1 匿名区块根专用）。
+     *
+     * 判据：从标题往上爬，取**第一个**满足
+     *   height >= 标题高度 × 2   且   height <= 屏幕高度 × 0.5
+     * 的祖先，并且它不是页面级容器。
+     *
+     * dump 实测（5.3.1 发现页「免费听」区块）：
+     *    b6d  "免费听"      高 96
+     *    bln  标题行        高 96   ← 同高，跳过
+     *    匿名 区块根        高 717  ← 26% 屏幕，命中 ✓
+     *    b7g  整个 feed     高 2439 ← 90%，超限跳过
+     *
+     * 保守设计：任何一步不满足就返回 null（宁可不藏，也不误伤整页）。
+     */
+    private fun pickBlockAncestorByBounds(textView: TextView): ViewGroup? {
+        return try {
+            val tvH = textView.height
+            if (tvH <= 0) return null
+            val screenH = textView.resources.displayMetrics.heightPixels
+            val limit = (screenH * 0.5f).toInt()
+            var node = textView.parent as? ViewGroup
+            var depth = 0
+            while (node != null && depth < 8) {
+                if (isPageLevelContainer(node)) break
+                val h = node.height
+                if (h > 0 && h >= tvH * 2 && h <= limit) return node
+                node = node.parent as? ViewGroup
+                depth++
+            }
+            null
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     /** 整卡模式：先藏容器，再 50/150/400ms 三档补爬（文本晚于布局到达） */
