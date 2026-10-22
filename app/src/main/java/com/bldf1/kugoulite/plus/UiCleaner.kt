@@ -480,8 +480,12 @@ object UiCleaner {
         // 原先只列 at6 ⇒ 「即将过期」这类文字标签整块裸露（用户实锤：
         // 胶囊右上角红色「即将过期」，07:49 首启截图 g10 实证）。
         // at7 在 XML 里默认 GONE、由代码决定 visible，只在"要弹推广角标"时才出现。
+        // R212（5.3.1 适配）：底栏红点容器 5.3.1 是 at8（含 at_ 红点图），
+        // 5.3.0 是 at6/at7。⚠️ 5.3.1 的 at5 已变成「我的」文字（5.3.0 是红点数字），
+        // 所以不能再按 at5 数字判定；这里只按容器 id。
+        // 去掉 minYRatio（布局期门禁 ⇒ 推迟到 scan ⇒ 闪现，R202 教训）。
         Rule(Settings.KEY_UI_TAB_BADGE, "TAB角标",
-            listOf(), listOf(), idNames = listOf("at6", "at7"), minYRatio = 0.85f),
+            listOf(), listOf(), idNames = listOf("at6", "at7", "at8")),
         Rule(Settings.KEY_UI_SEARCH_CLOSE, "搜索推广关闭钮",
             listOf(), listOf(), idNames = listOf("gu3"), minYRatio = 0.15f,
             hideParentLevels = 1),
