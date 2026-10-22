@@ -1322,6 +1322,10 @@ object UiCleaner {
         if (view == null || hidden[0] > 200 || depth > MAX_DEPTH) return
         val className = view.javaClass.name
         val rn = if (view.id != View.NO_ID) resourceName(view) else null
+        // ⭐ R190 诊断：确认 scan 到底有没有遍历到角标节点
+        if (rn == "at6" || rn == "at5") {
+            ModuleLog.log("R190 scan 命中 $rn depth=$depth rules=${idRuleMap[rn]?.size ?: 0} vis=${view.visibility}")
+        }
         val text = if (view is TextView) extractText(view) else null
         // ⭐ R139：播放页书签容器 dt7 用 INVISIBLE 隐藏 —— 占位保留，标题栏两侧保持对称，
         // 标题自然居中（用 GONE 会少一格，标题右移；用 translationX 补偿会压制切歌动画）。
@@ -3345,10 +3349,6 @@ object UiCleaner {
             // 之前用「!= main」反向判断，一旦页面识别不准（如 tag=MainFragmentContainer
             // 未能判定成 main）就会把「我的」页自己整片拦掉 ⇒ 净化大面积失效。
             if (rule.key in MINE_PAGE_RULE_KEYS && curPageId in SECONDARY_PAGE_IDS) return false
-            // ⭐ R175：拉锯断路器（见 ripCount 注释）
-            val rip = (ripCount[view] ?: 0) + 1
-            if (rip > 3) return false
-            ripCount[view] = rip
             // ⚠️ 类名排除门禁（最后一道闸，10-12）：把所有调用路径都兜住——
             // 真机取证发现「我的页赚钱入口」(dk_) 在页面门禁 apply→restore→
             // apply 抖动中，仍有一次在**已绘制后**把首页顶栏 MainTopImageView
