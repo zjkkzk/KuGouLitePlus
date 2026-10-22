@@ -328,6 +328,12 @@ object UiCleaner {
             listOf(),
             floatArrayOf(0.78f, 0.60f)
         ),
+        // ⭐ 5.3.0 设置页「福利」区块：福利中心/活动中心/鹅票票-演唱会门票/
+        // 酷狗商城/唱片店/听歌免流量，共 6 个引流入口（uiautomator 实录）。
+        // 每行是独立的 g6r 容器，用 sectionMode 连标题一起藏。
+        Rule(Settings.KEY_UI_SETTINGS_WELFARE, "设置页福利区块",
+            listOf(), listOf("福利中心", "活动中心", "鹅票票", "酷狗商城", "唱片店"),
+            sectionMode = true, useCardHide = true),
         Rule(Settings.KEY_UI_INVITE, "邀请提示",
             listOf("InviteTip", "InviteView"), listOf("邀请好友", "三个月会员", "邀好友", "组队领"),
             // ⚠️ ID 门禁（真机实锤 10-12）：feed 推荐语槽位 b5w 的文案可能包含

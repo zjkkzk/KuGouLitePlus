@@ -53,6 +53,8 @@ object Settings {
     const val KEY_UI_PLUS = "ui_plus_btn"
     const val KEY_UI_INVITE = "ui_invite_tip"
     const val KEY_UI_LAB = "ui_lab"
+    /** 设置页「福利」区块（福利中心/活动中心/鹅票票/酷狗商城/唱片店/听歌免流量） */
+    const val KEY_UI_SETTINGS_WELFARE = "ui_settings_welfare"
     const val KEY_UI_LOGIN_GUIDE = "ui_login_guide"
     const val KEY_UI_FREE_LISTEN_ENTRY = "ui_free_listen_entry"
     const val KEY_UI_FREE_LISTEN_ICON = "ui_free_listen_icon"
