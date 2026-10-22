@@ -2222,6 +2222,23 @@ object UiCleaner {
     private fun preHideSelf(view: View, fromVisibility: Boolean = false, fromMount: Boolean = false) {
         // ⭐ R167：同上，清单类页面整页跳过
         currentActivity?.get()?.let { if (isCleanListPage(it)) return }
+        // ⭐ R200：播放页书签容器 dt7 —— 在 **setId 阶段**就钉成 INVISIBLE。
+        // 原来只在 scan 里处理，而 scan 跑起来时视图已经画到屏幕上
+        //（日志实证 已绘制=是）⇒ 用户看到书签图标闪几秒才消失。
+        // dt7 是先 addView 后 setId 构建的，所以挂载 hook 里 id 还是 NO_ID，
+        // 只有 setId 这一层能第一时间拦到。
+        if (view.id != View.NO_ID) {
+            try {
+                if (Settings.isFeature(view.context, Settings.KEY_UI_PLAY_BOOKMARK) &&
+                    resourceName(view) == "dt7"
+                ) {
+                    if (view.visibility != View.INVISIBLE) view.visibility = View.INVISIBLE
+                    headerFixers[view] = true
+                    return
+                }
+            } catch (_: Throwable) {
+            }
+        }
         // ⚠️ 快速路径必须放在最前（真机 10-12 性能，本轮再前移）：绝大多数节点
         // 既没有资源 ID、类名也不是悬浮按钮类 —— 直接返回。这类节点**永远不可能
         // 被本引擎隐藏**，因此不需要计数器，也无须做资源查表。
