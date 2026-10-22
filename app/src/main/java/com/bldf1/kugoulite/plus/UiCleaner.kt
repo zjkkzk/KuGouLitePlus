@@ -336,7 +336,12 @@ object UiCleaner {
         // 酷狗商城/唱片店/听歌免流量，共 6 个引流入口（uiautomator 实录）。
         // 每行是独立的 g6r 容器，用 sectionMode 连标题一起藏。
         Rule(Settings.KEY_UI_SETTINGS_WELFARE, "设置页福利区块",
-            listOf(), listOf("福利中心", "活动中心", "鹅票票", "酷狗商城", "唱片店", "听歌免流量"),
+            // R213：补「会员中心」—— 5.3.1 设置页福利区新增入口，之前漏网。
+            // 实测两处结构（模块停用原生 dump）：
+            //   设置页: title→RelativeLayout→g6v→g6u(整行)　连父3层=整行 ✓
+            //   我的页: in1→iu2→isw(整行，含左格「福利与活动」)　连父3层=整行 ✓
+            // ⇒ 同一条规则连父3层在两处都正好落到整行，无需额外门禁。
+            listOf(), listOf("会员中心", "福利中心", "活动中心", "鹅票票", "酷狗商城", "唱片店", "听歌免流量"),
             // ⭐ R194：不用 sectionMode（它的 useCardHide 走的是发现页 feed 的
             // hideCardWithRecheck，在设置页 ListView 结构上返回 false）。
             // 设置页结构：title → RelativeLayout → g6s → g6r（行容器），
