@@ -1184,6 +1184,9 @@ internal object FloatingTabBar {
         // 因为原生下从发现页进入的二级歌曲列表页面同样带那颗圆形封面。
         // 只有播放页例外（它有自己的大唱片）。
         when {
+            // ⚠️ R196 实验已回滚：实测关掉「二级页显示转盘」对卡顿没有任何改善
+            //（挂载 1020 vs 979、转场 5.1s vs 5.0s），而原生二级页本来就带转盘
+            // ⇒ 保持与原生一致（用户要求）。
             topName == "FragmentViewPlayer3" -> {
                 if (detachedWheel != null) reattachWheel(snap)
                 lastTopRef = wr
