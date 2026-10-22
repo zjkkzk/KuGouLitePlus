@@ -521,6 +521,9 @@ object UiCleaner {
         Rule(Settings.KEY_UI_FREE_LISTEN_BLOCK, "免费听区块",
             listOf(), listOf("免费听"), sectionMode = true, useCardHide = true,
             excludeIdNames = listOf("dka")),
+        // R213 已回滚：b7g 是**整个信息流容器**（不是「免费听」区块）——
+        // 藏它后发现页内容全空。信息流内「免费听」区块需另找更内层的容器
+        //（b6d/ym 的共同父，比 b7g 再往下一两层），待查。
         Rule(Settings.KEY_UI_DISCOVER_BANNER_SLOT, "发现页Banner槽位",
             listOf(), listOf(), idNames = listOf("ela")),
     )
