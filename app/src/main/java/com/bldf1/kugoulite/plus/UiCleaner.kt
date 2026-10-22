@@ -490,8 +490,11 @@ object UiCleaner {
         // 但 ezd 在「我的」页也被复用（同 ID 跨页复用的老坑）⇒ 在「我的」页把宿主的
         // 正常 VIP 条藏掉、宿主立刻还原、我们再藏 —— 无限拉锯，实测该页每秒触发
         // 1148 次视图挂载，转场被拖到 10s 以上（用户实锤「打开最近卡顿+顶部闪转盘」）。
+        // R211（5.3.1 适配）：搜索页 VIP 推广条容器 5.3.1 是 ezg（5.3.0 是 ezd）。
+        // 条内两个 TextView：dhi("会员1天后过期，续费享完整畅听") / dhd("¥1续费")。
+        // 去掉 minYRatio（布局期门禁会推迟到 scan ⇒ 闪现，R202 教训）。
         Rule(Settings.KEY_UI_SEARCH_VIP_BAR, "搜索结果VIP条",
-            listOf(), listOf(), idNames = listOf("ezd"), minYRatio = 0.10f,
+            listOf(), listOf(), idNames = listOf("ezd", "ezg"),
             requireActivityName = "Search"),
         Rule(Settings.KEY_UI_VIP_EXPIRE, "VIP过期胶囊",
             listOf(), listOf(), idNames = listOf("c6a")),
