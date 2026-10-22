@@ -63,6 +63,8 @@ object Settings {
     const val KEY_UI_MINE_FREE_BAR = "ui_mine_free_bar"
     /** 发现页顶栏「免费听」tab（5.3.1 新增: dkd） */
     const val KEY_UI_DISCOVERY_FREE_TAB = "ui_discovery_free_tab"
+    /** 发现页顶栏「免」图标（5.3.1: dg3，父 dg4；「我的」页 dg3 是搜索图标） */
+    const val KEY_UI_DISCOVERY_FREE_ICON = "ui_discovery_free_icon"
     const val KEY_UI_LOGIN_GUIDE = "ui_login_guide"
     const val KEY_UI_FREE_LISTEN_ENTRY = "ui_free_listen_entry"
     const val KEY_UI_FREE_LISTEN_ICON = "ui_free_listen_icon"

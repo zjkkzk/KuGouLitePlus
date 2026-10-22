@@ -423,6 +423,15 @@ object UiCleaner {
         // 5.3.1 发现页顶栏：dk8(54-156)="发现"、dkd(216-369)="免费听"、后面是"乐库"。
         // 只藏 dkd。maxYRatio 会给布局期门禁，这里用祖先 apg（顶栏）更稳；
         // 但 apg 在 setId 阶段可能未挂好 ⇒ 宁可不加门禁（dkd 是 tab 专属 id）。
+        // R209（5.3.1 适配）：发现页顶栏「免」图标。
+        // ⚠️ 5.3.1 里 dg3 是跨页复用的同名 id：
+        //   发现页 dg3(956-1040) = 「免」图标，父 = dg4(956-1040 FrameLayout)
+        //   我的页 dg3(656-782)  = 搜索图标，父 = api(650-1220 LinearLayout)
+        // 用 parentIdNames 区分 —— 父容器在 setId 阶段已挂好，不依赖布局测量，
+        // 因此仍可零闪现。
+        Rule(Settings.KEY_UI_DISCOVERY_FREE_ICON, "发现页免图标",
+            listOf(), listOf(), idNames = listOf("dg3"),
+            parentIdNames = listOf("dg4"), hideParentLevels = 1),
         // R208 已回滚：dkd(216-369) 藏掉后「乐库」tab 也一起消失
         // （说明 dkd 是包含「免费听+乐库」的容器，不是「免费听」单一 tab）。
         // 要精确藏需继续拆它的子节点，暂缓。
