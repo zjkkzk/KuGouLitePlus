@@ -337,6 +337,9 @@ object UiCleaner {
             // hideCardWithRecheck，在设置页 ListView 结构上返回 false）。
             // 设置页结构：title → RelativeLayout → g6s → g6r（行容器），
             // 连父藏 3 层正好落到 g6r 这一行。
+            // ⚠️ R195 试过补关键词「福利」来藏区块标题，结果**整个设置页被清空**
+            //（「福利」二字命中了更上层的容器节点，hideParentLevels=3 把它整块带走）
+            // ⇒ 已回滚。区块标题保持显示。
             hideParentLevels = 3),
         Rule(Settings.KEY_UI_INVITE, "邀请提示",
             listOf("InviteTip", "InviteView"), listOf("邀请好友", "三个月会员", "邀好友", "组队领"),
