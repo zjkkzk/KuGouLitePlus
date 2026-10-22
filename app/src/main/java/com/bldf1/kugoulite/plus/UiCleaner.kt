@@ -1003,7 +1003,13 @@ object UiCleaner {
 
         // 3. 预筛：整段文本不含任何规则关键词首字则直接返回（热路径快速剔除）
         //    ⚠️ 表由 RULES 自动派生（见 promoCharTable），保证不漏关键词
-        if (t.isNotEmpty() && !mayBePromo(t)) return
+        // ⭐ R189：TAB 角标是**纯数字**（如「15」），数字不在 promoCharTable 里
+        // ⇒ 会被预筛直接 return ⇒ 「TAB角标」规则永远跑不到（用户实锤：底部红点 15 不消失）。
+        // 对 at5/at4 这两个角标 ID 按 ID 快判，跳过文本预筛。
+        val __rnTab = resourceName(v)
+        val __tabBadge = (__rnTab == "at5" || __rnTab == "at4") &&
+            Settings.isFeature(v.context, Settings.KEY_UI_TAB_BADGE)
+        if (!__tabBadge && t.isNotEmpty() && !mayBePromo(t)) return
 
         val isOwn = isOwnPanel(v)
 
