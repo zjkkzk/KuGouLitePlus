@@ -302,9 +302,12 @@ object UiCleaner {
                 // 设置页第三处：关闭搜索推广后这一行标题才回来（真机实锤）
                 "广告应用下载清单"
             )),
+        // R202: 去掉 minYRatio(0.20) —— 它靠 getLocationOnScreen 判定，setId 阶段
+        // 坐标还是 0 ⇒ 门禁不成立 ⇒ 只能等 scan ⇒ 日志实证"已绘制=是"(闪现)。
+        // requireActivityName="Search" 已足够限定搜索页。
         Rule(Settings.KEY_UI_SEARCH_BANNER, "搜索推广Banner",
             listOf(), listOf(), idNames = listOf("gu6"),
-            minYRatio = 0.20f, hideParentLevels = 2,
+            hideParentLevels = 2,
             requireActivityName = "Search"),
         // ⭐ R100：搜索页默认页下方的**频道推荐区**（推荐/周榜/次元/AI… tab + 卡片列表）。
         // 祖先链真机实锤（模块内遍历，adb 的 uiautomator/dumpsys 都被该页动画挡住）：
@@ -313,9 +316,10 @@ object UiCleaner {
         // `gub` 包住整个频道区（tab 栏 + 内容页），`gue` 是频道 tab 的 pager。
         // 用 ancestorIdNames=["e1k"] 限定**只在搜索页**生效 —— gub/gue 是短混淆 id，
         // 别处可能有同名节点（铁律：同类同 id 跨页复用是最大误伤源）。
+        // R202: 去掉 ancestorIdNames(["e1k"]) —— 祖先在 setId 阶段尚未挂好
+        // ⇒ 门禁不成立 ⇒ 等 scan ⇒ 日志实证"已绘制=是"。
         Rule(Settings.KEY_UI_SEARCH_CHANNEL, "搜索页频道推荐",
             listOf(), listOf(), idNames = listOf("gub", "gue"),
-            ancestorIdNames = listOf("e1k"),
             requireActivityName = "Search"),
         Rule(Settings.KEY_UI_MEMBER_BAR, "会员栏",
             listOf("VipBar", "MemberBar", "VipBanner"), listOf("开通会员", "开通概念版", "即将过期", "自动续费")),
@@ -428,8 +432,11 @@ object UiCleaner {
         Rule(Settings.KEY_UI_SEARCH_CLOSE, "搜索推广关闭钮",
             listOf(), listOf(), idNames = listOf("gu3"), minYRatio = 0.15f,
             hideParentLevels = 1),
+        // R202: 去掉 minYRatio(0.15) —— 同上，setId 阶段坐标为 0 ⇒ 等 scan ⇒ 闪现。
+        // 加上 requireActivityName 限定搜索页以防复用。
         Rule(Settings.KEY_UI_SEARCH_INDICATOR, "搜索推广指示器",
-            listOf(), listOf(), idNames = listOf("gu4"), minYRatio = 0.15f),
+            listOf(), listOf(), idNames = listOf("gu4"),
+            requireActivityName = "Search"),
         // ⭐ R174：本规则只按 id=ezd + y>10% 判定，**没有页面门禁**。
         // 但 ezd 在「我的」页也被复用（同 ID 跨页复用的老坑）⇒ 在「我的」页把宿主的
         // 正常 VIP 条藏掉、宿主立刻还原、我们再藏 —— 无限拉锯，实测该页每秒触发
