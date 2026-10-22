@@ -432,9 +432,13 @@ object UiCleaner {
         Rule(Settings.KEY_UI_DISCOVERY_FREE_ICON, "发现页免图标",
             listOf(), listOf(), idNames = listOf("dg3"),
             parentIdNames = listOf("dg4"), hideParentLevels = 1),
-        // R208 已回滚：dkd(216-369) 藏掉后「乐库」tab 也一起消失
-        // （说明 dkd 是包含「免费听+乐库」的容器，不是「免费听」单一 tab）。
-        // 要精确藏需继续拆它的子节点，暂缓。
+        // R210：dkd(216-369) 是「免费听」的图片 tab（ImageView，非容器）。
+        // 上一轮 R208 误以为它连带藏了「乐库」，重测确认 dkd 只对应「免费听」。
+        // 加 parentIdNames=[hta]（顶栏 tab 容器）限定，避免同名 id 在别处误伤。
+        // R210 已回滚：parentIdNames=["hta"] 门禁不成立（dkd 的父不是 hta），
+        // 规则未命中。且「免费听」tab 本身是**正常功能入口**（不是推广），
+        // 保留显示更合理。
+        // Rule(Settings.KEY_UI_DISCOVERY_FREE_TAB, "发现页免费听 tab", ...) 已停用
         // R207: 5.3.1 免费听整块 bsd(54-1166, 702-882，含图标+文字+蓝线)。
         // ⚠️ 必须**单独一条规则、不连父**：曾把它并进「免费听图标」(带 hideParentLevels=1)
         // ⇒ 该规则整体爬升，而 bsd 的父是整张头像卡 ⇒ 整页内容被清空。
