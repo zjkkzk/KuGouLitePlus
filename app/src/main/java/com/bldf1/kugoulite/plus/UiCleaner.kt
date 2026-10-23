@@ -301,7 +301,7 @@ object UiCleaner {
         // 日志实证：隐藏 CommentGDTAdsView 已绘制=否 0x0（布局前就 GONE，零闪现）。
         Rule(Settings.KEY_UI_SEARCH_AD, "搜索推广卡片",
             listOf("GDTAds"), listOf(),
-            idNames = listOf("i4z"), hideParentLevels = 3),
+            idNames = listOf(), hideParentLevels = 3),
         Rule(Settings.KEY_UI_SEARCH_AD, "搜索推广",
             listOf("SearchAd", "SearchPromo"), listOf("广告", "推广"),
             excludeIdNames = listOf("b5w"),
@@ -368,7 +368,7 @@ object UiCleaner {
         Rule(Settings.KEY_UI_LOGIN_GUIDE, "登录引导",
             listOf("LoginGuide", "GuideLogin", "LoginTip"), listOf("登录后畅听", "立即登录")),
         Rule(Settings.KEY_UI_FREE_LISTEN_ENTRY, "免费听入口",
-            listOf(), listOf(), idNames = listOf("dka")),
+            listOf(), listOf(), idNames = listOf()),
         // R203（5.3.1 适配）：顶栏右侧图标位 5.3.1 变为 dg3(搜索)/f5l(免图标)/
         // c69(信息中心)/f5m(设置)。5.3.0 的 dg0 保留以兼容旧版。
         // 注意 5.3.1 的页面也会同时命中 dg3/c69/f5m 这些新 id，但本规则只列 dg0/f5l，
@@ -396,7 +396,8 @@ object UiCleaner {
             // **信息中心图标**（内含红点 c6b 数字"14"），不是免图标。
             // 免图标是 dg3(656-782)。之前把 c69 当免图标写进这条规则，
             // 结果信息中心被误藏（用户实锤「信息中心图标被误伤」）。
-            listOf(), listOf(), idNames = listOf("dg0"), hideParentLevels = 1),
+            // R250：dg0 在 5.3.1 已废（免图标改为 dg3，发现页/我的页各有一条规则覆盖）
+            listOf(), listOf(), idNames = listOf(), hideParentLevels = 1),
             // ⚠️ 不再连父藏 dg1（2026-10-15 真机 A/B 实锤）：dg1(HnVisualEffectLayout)
             // 虽然只有 84×84（免图标位），但酷狗效果引擎内部联动——dg1 被藏后
             // **发现页整页背景渐变（含顶栏）消失变纯白**（用户报「顶栏背景不见了」）。
@@ -546,7 +547,7 @@ object UiCleaner {
         // 祖先 gu2(全屏) > e1n(0,243-1220,2712) > anon(0,243-1060)。
         // 用户实锤：Banner 被藏了，但下面这排小点还在。
         Rule(Settings.KEY_UI_SEARCH_INDICATOR, "搜索推广指示器",
-            listOf(), listOf(), idNames = listOf("gu4"),
+            listOf(), listOf(), idNames = listOf(),
             requireActivityName = "Search"),
         // R221（5.3.1 适配）：gu7 单独一条、**不带 requireActivityName 静态门禁**。
         // 原因：requireActivityName 在 setId 阶段依赖 currentActivity，
