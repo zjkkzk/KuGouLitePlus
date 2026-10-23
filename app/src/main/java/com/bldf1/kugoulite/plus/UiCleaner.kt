@@ -2419,7 +2419,7 @@ object UiCleaner {
         if (view.id != View.NO_ID) {
             try {
                 if (Settings.isFeature(view.context, Settings.KEY_UI_PLAY_BOOKMARK) &&
-                    resourceName(view) in BOOKMARK_IDS
+                    resourceName(view) in BOOKMARK_IDS && isBookmarkPosition(view)
                 ) {
                     if (view.visibility != View.INVISIBLE) view.visibility = View.INVISIBLE
                     headerFixers[view] = true
@@ -2442,7 +2442,7 @@ object UiCleaner {
             try {
                 if (view.visibility == View.VISIBLE &&
                     Settings.isFeature(view.context, Settings.KEY_UI_PLAY_BOOKMARK) &&
-                    resourceName(view) in BOOKMARK_IDS
+                    resourceName(view) in BOOKMARK_IDS && isBookmarkPosition(view)
                 ) {
                     view.visibility = View.INVISIBLE
                     return
