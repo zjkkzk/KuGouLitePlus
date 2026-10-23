@@ -320,10 +320,16 @@ object UiCleaner {
         // R202: 去掉 minYRatio(0.20) —— 它靠 getLocationOnScreen 判定，setId 阶段
         // 坐标还是 0 ⇒ 门禁不成立 ⇒ 只能等 scan ⇒ 日志实证"已绘制=是"(闪现)。
         // requireActivityName="Search" 已足够限定搜索页。
+        // ⚠️ R248（5.3.1 对照发现）：两处都错了。
+        // ① 5.3.1 里 gu6(1118,835-1166,883，48x48) 是 Banner 的**关闭按钮**，
+        //    真正的容器是 **gu8**(54,835-1166,1037)。旧规则藏关闭钮+连父2层，
+        //    在结构变化后既可能藏不到整条、也可能藏错东西。
+        // ② **搜索页的 Activity 是 MediaActivity，不是 SearchActivity**
+        //    ⇒ requireActivityName="Search" 永远不匹配 ⇒ 规则在 5.3.1 **完全没执行**
+        //    （日志印证：搜索页有推广卡片/指示器记录，唯独没有 Banner 记录）。
+        // 改为直接藏容器 gu8（搜索页专属 id），去掉错误的 Activity 门禁。
         Rule(Settings.KEY_UI_SEARCH_BANNER, "搜索推广Banner",
-            listOf(), listOf(), idNames = listOf("gu6"),
-            hideParentLevels = 2,
-            requireActivityName = "Search"),
+            listOf(), listOf(), idNames = listOf("gu8")),
         // ⭐ R100：搜索页默认页下方的**频道推荐区**（推荐/周榜/次元/AI… tab + 卡片列表）。
         // 祖先链真机实锤（模块内遍历，adb 的 uiautomator/dumpsys 都被该页动画挡住）：
         //   KGUIFrameLayout/gu7 < FrameLayout < ViewPager/**gue** < FrameLayout/**gub**
@@ -555,9 +561,12 @@ object UiCleaner {
         // R211（5.3.1 适配）：搜索页 VIP 推广条容器 5.3.1 是 ezg（5.3.0 是 ezd）。
         // 条内两个 TextView：dhi("会员1天后过期，续费享完整畅听") / dhd("¥1续费")。
         // 去掉 minYRatio（布局期门禁会推迟到 scan ⇒ 闪现，R202 教训）。
+        // ⚠️ R248：同样去掉 requireActivityName="Search"（搜索页是 MediaActivity）。
+        // ezg 在「最近播放」列表项里复用 ⇒ 已由「列表页VIP推广条」用 minWRatio 处理失败，
+        // 且 ezg/ezd 在 5.3.1 的搜索页暂时没出现（VIP 用户不下发）⇒ 本条仅保留 id 匹配，
+        // 命中时由 matchIdRule 的几何门禁兜底。
         Rule(Settings.KEY_UI_SEARCH_VIP_BAR, "搜索结果VIP条",
-            listOf(), listOf(), idNames = listOf("ezd", "ezg"),
-            requireActivityName = "Search"),
+            listOf(), listOf(), idNames = listOf("ezd", "ezg")),
         // ❌ R241 已回滚：想用 minWRatio=0.95 区分「推广条 vs 列表项」失败 ——
         // 歌曲列表项的**外层容器也是全宽 1220**（文字区 195-905 只是它的子节点），
         // 宽度门禁把整个列表都命中了 ⇒ 列表文字再次全没。
