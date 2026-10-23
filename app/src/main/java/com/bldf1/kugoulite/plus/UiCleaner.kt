@@ -4542,6 +4542,16 @@ object UiCleaner {
     ): Boolean {
         val rn = resourceName(view) ?: return false
         if (rn !in rule.idNames) return false
+        // ⭐ R239（2026-10-23）：Activity 名门禁 —— setId/挂载路径此前**漏检**。
+        // 实锤：「搜索结果VIP条」(ezd/ezg, requireActivityName="Search") 在
+        // 「最近播放」(MediaActivity) 里把 5 个歌曲列表项的文字容器 LinearLayout 藏了
+        //（ezg 在列表项里复用）⇒ 列表只剩封面、歌名歌手全没。
+        // 取不到 currentActivity 时**放行**（避免 setId 太早误拦），
+        // 宁可搜索页 VIP 条偶尔闪一下，也不能误伤别的页面。
+        rule.requireActivityName?.let { req ->
+            val a = currentActivity?.get()
+            if (a != null && !a.javaClass.simpleName.contains(req, ignoreCase = true)) return false
+        }
         // ⚠️ 类名排除门禁（真机实锤 10-12）：复核路径此前漏检这里——
         // 「我的页赚钱入口」(dk_) 在首页顶栏复核对 MainTopImageView 仍然通过，
         // 把"乐库"入口在**已绘制之后**再隐藏一次（用户看到乐库闪一下/消失）。
