@@ -287,6 +287,14 @@ object UiCleaner {
         // （`严格=是`）＝用户看到推荐语闪一下。同一视图一次会话被藏 3 次。
         // 处方同「频道推荐/免费听区块」那两处历史坑（memory：**推荐语是 b5w，无门禁会误伤**）：
         // 排除推荐语槽位。（更彻底的"只在搜索页生效"需要搜索页祖先 ID，留待后续。）
+        // ⭐ R226（2026-10-23）：广告卡片**容器**也要藏，只藏文字会「闪一下图片」。
+        // 日志实锤：评论面板里的信息流广告只命中 text="广告" 的 TextView（id=i4z 及
+        // 若干无 id 节点），而卡片本体（图片/底板）没规则覆盖 ⇒ 图片先渲染 → 闪一下。
+        // i4z 是广告角标标签，其父即卡片容器 ⇒ 用连父 1 层藏整卡。
+        // 风险由 R224 全屏安全阀兜底（爬到接近全屏会放弃）。
+        Rule(Settings.KEY_UI_SEARCH_AD, "搜索推广卡片",
+            listOf(), listOf(),
+            idNames = listOf("i4z"), hideParentLevels = 1),
         Rule(Settings.KEY_UI_SEARCH_AD, "搜索推广",
             listOf("SearchAd", "SearchPromo"), listOf("广告", "推广"),
             excludeIdNames = listOf("b5w"),
