@@ -504,8 +504,15 @@ object UiCleaner {
         // 祖先 gu2(全屏) > e1n(0,243-1220,2712) > anon(0,243-1060)。
         // 用户实锤：Banner 被藏了，但下面这排小点还在。
         Rule(Settings.KEY_UI_SEARCH_INDICATOR, "搜索推广指示器",
-            listOf(), listOf(), idNames = listOf("gu4", "gu7"),
+            listOf(), listOf(), idNames = listOf("gu4"),
             requireActivityName = "Search"),
+        // R221（5.3.1 适配）：gu7 单独一条、**不带 requireActivityName 静态门禁**。
+        // 原因：requireActivityName 在 setId 阶段依赖 currentActivity，
+        // 那一刻未必已是 Search ⇒ 门禁失败 ⇒ 退化到 4 秒扫描 ⇒（已绘制=是）闪现。
+        // 已实测：gu7/gu4 在发现页与「我的」页都不存在（搜索页专属 id），
+        // 因此去掉 Activity 门禁是安全的。gu4 因历史原因保守保留原门禁。
+        Rule(Settings.KEY_UI_SEARCH_INDICATOR, "搜索推广指示器(531)",
+            listOf(), listOf(), idNames = listOf("gu7")),
         // ⭐ R174：本规则只按 id=ezd + y>10% 判定，**没有页面门禁**。
         // 但 ezd 在「我的」页也被复用（同 ID 跨页复用的老坑）⇒ 在「我的」页把宿主的
         // 正常 VIP 条藏掉、宿主立刻还原、我们再藏 —— 无限拉锯，实测该页每秒触发
