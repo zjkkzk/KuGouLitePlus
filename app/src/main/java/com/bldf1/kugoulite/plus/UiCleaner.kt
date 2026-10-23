@@ -499,8 +499,12 @@ object UiCleaner {
             hideParentLevels = 1),
         // R202: 去掉 minYRatio(0.15) —— 同上，setId 阶段坐标为 0 ⇒ 等 scan ⇒ 闪现。
         // 加上 requireActivityName 限定搜索页以防复用。
+        // R220（5.3.1 适配）：5.3.1 的搜索页指示器是 gu7（5.3.0 是 gu4）。
+        // dump 实测：View gu7 [520,823][700,832]（180x9 的一排小点），
+        // 祖先 gu2(全屏) > e1n(0,243-1220,2712) > anon(0,243-1060)。
+        // 用户实锤：Banner 被藏了，但下面这排小点还在。
         Rule(Settings.KEY_UI_SEARCH_INDICATOR, "搜索推广指示器",
-            listOf(), listOf(), idNames = listOf("gu4"),
+            listOf(), listOf(), idNames = listOf("gu4", "gu7"),
             requireActivityName = "Search"),
         // ⭐ R174：本规则只按 id=ezd + y>10% 判定，**没有页面门禁**。
         // 但 ezd 在「我的」页也被复用（同 ID 跨页复用的老坑）⇒ 在「我的」页把宿主的
