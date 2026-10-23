@@ -1249,6 +1249,9 @@ object UiCleaner {
     private fun onTextSet(v: TextView, t: CharSequence) {
         // 1. 构造期无父容器：无人恢复，一律跳过
         if (v.parent == null) return
+        // ⭐ R262：设置页一律不净化（文本路径此前没拦，导致「免费听区块」等
+        // 在设置页滑动时仍在藏/还原 ⇒ 闪烁）
+        if (isInSettingsPage(v)) return
 
         // 2. 复用恢复安全网：规则不再匹配时恢复显示
         val held = hiddenByUs[v]
@@ -1391,6 +1394,8 @@ object UiCleaner {
             if (activity.isFinishing || activity.isDestroyed) return
             // ⭐ R168：更新当前页面 id（供规则页面归属筛选）
             curPageId = computePageId(activity)
+            // ⭐ R262：设置页整页跳过扫描（含周期性全树扫描），彻底断掉滑动闪烁
+            activity.window?.decorView?.let { if (isInSettingsPage(it)) return }
             // ⭐ R167：收藏/最近/本地/已购/个人主页 无净化目标，整页跳过
             if (isCleanListPage(activity)) return
             val decor = activity.window?.decorView ?: return
@@ -2890,7 +2895,9 @@ object UiCleaner {
         // 挂载最多各跑 30 次 = 翻页/滚动掉帧主因之一。
         // 现在：预算文本规则表 + 循环外求值一次 + mayBePromo 预筛，
         // 循环体只剩纯字符串匹配。
-        if (textView != null && text != null && TEXT_RULES.isNotEmpty()) {
+        if (textView != null && text != null && TEXT_RULES.isNotEmpty()
+            && !isInSettingsPage(textView)   // ⭐ R264：设置页不净化（文本挂载路径）
+        ) {
             val t0 = text
             if (mayBePromo(t0) && !isOwn) {
                 for (rule in TEXT_RULES) {
@@ -2943,8 +2950,12 @@ object UiCleaner {
             val inSettingsPage = try {
                 // ⚠️ view.context 通常是 ContextThemeWrapper 而非 Activity，
                 // 直接 `as? Activity` 恒为 null（第一次修复就是这么失效的）⇒ 必须逐层解包。
-                val cn = findActivity(view.context)?.javaClass?.simpleName ?: ""
-                cn.contains("Setting", ignoreCase = true)
+                // ⚠️ R262：原判断是「Activity 类名含 Setting」——但设置页的 Activity 是
+                // **MediaActivity**，永远不含 Setting ⇒ inSettingsPage 恒为 false
+                // ⇒ 「空标题槽位」在设置页照常执行，滑动时不断预隐藏/还原 = 闪烁。
+                // 改用与 R255 一致的布局根判定 av7。
+                isInSettingsPage(view) || (findActivity(view.context)?.javaClass?.simpleName ?: "")
+                    .contains("Setting", ignoreCase = true)
             } catch (_: Throwable) {
                 false
             }
@@ -3647,6 +3658,8 @@ object UiCleaner {
 
     /** 会员推广卡：爬升到全宽卡容器隐藏（页面级容器即停防整页误伤） */
     private fun hideMemberCard(textView: TextView, rule: Rule) {
+        // ⭐ R264：设置页一律不净化（会员栏卡片是独立路径，前面几处拦截管不到）
+        if (isInSettingsPage(textView)) return
         try {
             var target: View = textView
             var node = textView.parent as? ViewGroup
@@ -4254,6 +4267,11 @@ object UiCleaner {
     }
 
     private fun hideBlockContainer(textView: TextView, rule: Rule): Boolean {
+        // ⭐ R263：设置页一律不净化。这条是「区块整卡隐藏」的**独立路径**
+        // （免费听区块/频道推荐区块/概念实验室 都走它），前面在 matchIdRule /
+        // applyRuleToView / onTextSet 加的拦截管不到这里 ⇒ 设置页滑动时
+        // 「免费听区块 隐藏(整卡·item根)」照常执行 = 闪烁。
+        if (isInSettingsPage(textView)) return false
         try {
             // ⚠️ 双重铁律（两轮真机实锤）：
             // 1. 必须爬到 item 根（回收容器直接子）——只藏 item 内部容器，
