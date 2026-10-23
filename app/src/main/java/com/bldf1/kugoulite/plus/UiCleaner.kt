@@ -2848,6 +2848,19 @@ object UiCleaner {
         try {
             if (BADGE_DIAG) diagBadge(view, "分离")
             val rule = hiddenByUs[view] ?: return
+            // ⭐ R225（2026-10-23）：内容仍然命中规则时**不还原**。
+            // 实锤日志（播放页评论面板的信息流广告）：
+            //   09:04:00.302 搜索推广 即时预隐藏 text="广告"
+            //   09:04:00.354 分离还原 搜索推广 v=4228371        ← 被还原
+            //   09:04:00.392 搜索推广 即时预隐藏 text="广告"     ← 又藏
+            // 「藏→分离还原→再藏」中间的可见窗口就是用户看到的「闪一下广告」。
+            // 还原原本是为了保证 RecyclerView 回收池干净；但若内容没变，
+            // 还原只会制造闪现。视图被复用到别的内容时会走 setText ⇒
+            // onTextSet 第 2 步的 ruleStillMatches 兜底会把它恢复，因此安全。
+            if (ruleStillMatches(view, rule)) {
+                ModuleLog.log("UI净化[分离还原] 跳过(内容仍匹配) ${rule.name} v=${Integer.toHexString(view.hashCode())}")
+                return
+            }
             // 还原高度（feed 槽位 height=0 的情形）
             val h = savedHeights[view]
             if (h != null && h >= 0) {
