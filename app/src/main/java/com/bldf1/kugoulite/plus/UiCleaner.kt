@@ -430,9 +430,9 @@ object UiCleaner {
         // 我的页白卡内的两行推广（Round 18 实锤：ist=福利与活动/天天签到兑免费
         // VIP，bsb=免费听/全天会员免费领/领会员；关键词规则只隐了 bsa/c6n 两个
         // TextView，残留「免费听」文字+进度条 = 半隐藏残迹）——按行容器整条塌缩
-        Rule(Settings.KEY_UI_MINE_SIGN_BAR, "我的页签到/领会员条",
-            listOf(), listOf(), idNames = listOf("ist", "bsb"),
-            collapseHeight = true),
+        // ⛔ R249：删除。全跳 dump 实证 5.3.1 的「免费听·全天会员免费领」条就是
+        // **bsd**(54,702-1166,882)，已被「我的页免费听条」规则覆盖；
+        // ist/bsb 是 5.3.0 的旧 id，在新版完全不存在 ⇒ 本规则此前一直空转。
         // 会员角标与入口：⚠️ 只藏角标图片 c6u，**不能藏 iv5**——iv5 是白卡
         // 右上角的白色底板（GONE 后露出页面底色 = 白卡右上角缺口，Round 19
         // 用户实锤）；apj=昵称右侧「会员中心」图标（KGTransImageView，desc
@@ -518,10 +518,11 @@ object UiCleaner {
         //（用户实锤「头像被误伤」：白卡里只剩 Willie 文字，企鹅头像不见了）。
         Rule(Settings.KEY_UI_MINE_BADGE, "我的页顶栏红点",
             // ⚠️ R237：f5k 在 5.3.1 是**信息中心图标本体**（不是红点）⇒ 去掉。
-            // 用户实锤「信息中心图标被误伤」：顶栏只剩设置一个图标。
-            // 红点若另有 id 再单独补。
-            listOf(), listOf(), idNames = listOf("ip9"),
-            ancestorIdNames = listOf("apg")),
+            // ⭐ R249（全跳 dump 实证）：红点是 **ipb**(1010,160-1049,211, t="14")，
+            // 父容器 c69 是消息图标(932,138-1058,264)。同区还有 c6b 但那个 id
+            // 与「我的页等级勋章」复用 ⇒ 只用 ipb，并用 c69 祖先门禁限定在消息图标内。
+            listOf(), listOf(), idNames = listOf("ipb"),
+            ancestorIdNames = listOf("c69")),
         // ⚠️ R87：底栏有**两套**角标容器（都在 kg 导航栏布局 res/z/ae5.xml，
         // 5 个 id 均只此一处使用、零复用）：
         //   at6 = 红点/数字角标（at8 红点图 + at5 数字）
@@ -535,9 +536,9 @@ object UiCleaner {
         // 去掉 minYRatio（布局期门禁 ⇒ 推迟到 scan ⇒ 闪现，R202 教训）。
         Rule(Settings.KEY_UI_TAB_BADGE, "TAB角标",
             listOf(), listOf(), idNames = listOf("at6", "at7", "at8")),
-        Rule(Settings.KEY_UI_SEARCH_CLOSE, "搜索推广关闭钮",
-            listOf(), listOf(), idNames = listOf("gu3"), minYRatio = 0.15f,
-            hideParentLevels = 1),
+        // ⛔ R249：删除。5.3.1 的 Banner 关闭钮是 gu6(1118,835-1166,883, 48x48)，
+        // gu3 已不存在；而且「搜索推广Banner」现在直接藏整个容器 gu8，
+        // 单独藏关闭钮没有意义（容器都没了）。
         // R202: 去掉 minYRatio(0.15) —— 同上，setId 阶段坐标为 0 ⇒ 等 scan ⇒ 闪现。
         // 加上 requireActivityName 限定搜索页以防复用。
         // R220（5.3.1 适配）：5.3.1 的搜索页指示器是 gu7（5.3.0 是 gu4）。
