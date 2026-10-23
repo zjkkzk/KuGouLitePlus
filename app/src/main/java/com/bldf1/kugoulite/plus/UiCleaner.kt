@@ -1182,7 +1182,7 @@ object UiCleaner {
 
         // 8. 免费听区块（⚠️ ID 门禁 b6b：推荐语含"免费听"字样时不能误伤推荐卡）
         if (Settings.isFeature(v.context, Settings.KEY_UI_FREE_LISTEN_BLOCK) && !isOwn
-            && t.contains("免费听") && resourceName(v) == "b6b"
+            && t.contains("免费听") && isSectionTitleId(resourceName(v))
         ) {
             hideCardWithRecheck(v, freeListenBlockRule)
             return
@@ -1201,7 +1201,7 @@ object UiCleaner {
 
         // 10. 频道推荐（⚠️ ID 门禁 b6b：推荐语含"频道推荐"字样时不能误伤整个推荐卡）
         if (Settings.isFeature(v.context, Settings.KEY_UI_CHANNEL) && !isOwn
-            && t.contains("频道推荐") && resourceName(v) == "b6b"
+            && t.contains("频道推荐") && isSectionTitleId(resourceName(v))
         ) {
             hideCardWithRecheck(v, channelRule)
             return
@@ -1597,7 +1597,7 @@ object UiCleaner {
             // R217：5.3.1 信息流区块标题的 id 是 b6d（dump 实测：
             // b6d("免费听" 54-207,1701-1797) 挂在 bln(标题行) 下，匿名父为区块本体）。
             // 误伤风险由 textKeywords 兜底（只有命中关键词的标题才会走到这里）。
-            if (rn != "b6b" && rn != "title" && rn != "b6d") return false
+            if (!isSectionTitleId(rn)) return false
             var did = false
             (view as? TextView)?.let {
                 did = if (rule.useCardHide) hideCardWithRecheck(it, rule)
@@ -2724,7 +2724,7 @@ object UiCleaner {
         // 概念实验室区块标题（⚠️ ID 门禁 b6b：推荐语含"概念实验室"不能误伤推荐卡）
         if (textView != null && Settings.isFeature(ctx, Settings.KEY_UI_LAB) && !isOwn) {
             if (text != null && text.contains("概念实验室")) {
-                if (resourceName(view) == "b6b") {
+                if (isSectionTitleId(resourceName(view))) {
                     hideCardWithRecheck(textView, labRule)
                 }
                 return
@@ -3295,6 +3295,18 @@ object UiCleaner {
     /** 视图最近一次挂载的时刻（uptimeMillis；drawingTime 同时间基） */
     private val attachUptime = java.util.WeakHashMap<View, Long>()
 
+    /**
+     * ⭐ R219：信息流「区块标题槽位」的 id 判定。
+     *
+     * 5.3.0 = b6b；5.3.1 = b6d；设置页 = title。
+     * ⚠️ 这个 id 到处被写死过（setText 的两条区块规则、概念实验室、
+     * findFreeListenTexts），漏一处就会出现「等 4 秒扫描才藏」的可见延迟
+     * （用户实锤：免费听/频道推荐区块显示几秒才消失）。
+     * 统一走这里，以后换版本只改这一处。
+     */
+    private fun isSectionTitleId(rn: String?): Boolean =
+        rn == "b6b" || rn == "b6d" || rn == "title"
+
     private fun isRecycleContainer(v: View): Boolean {
         val cn = v.javaClass.name
         return cn.contains("RecyclerView") || cn.contains("ViewPager") || cn.contains("AbsListView")
@@ -3383,7 +3395,7 @@ object UiCleaner {
         if (view == null || depth > MAX_DEPTH) return
         if (view is TextView && !isOwnPanel(view)) {
             // ⚠️ ID 门禁：只认区块标题槽位 b6b（与规则集一致，绝不按正文文案误伤整卡）
-            if (resourceName(view) == "b6b") {
+            if (isSectionTitleId(resourceName(view))) {
                 val t = view.text?.toString()
                 if (t != null && t.contains("免费听")) hideCardWithRecheck(view, freeListenBlockRule)
             }
