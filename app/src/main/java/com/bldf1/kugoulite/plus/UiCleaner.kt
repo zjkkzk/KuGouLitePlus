@@ -825,7 +825,12 @@ object UiCleaner {
             v.getLocationOnScreen(loc)
             val dm = v.resources.displayMetrics
             val y = loc[1]
-            loc[0] > dm.widthPixels * 0.8f &&
+            // ⚠️ R233：x 阈值 0.80 → 0.72。实测书签实际位置 941-1031（77% 屏宽），
+            // 用 0.80(976) 会把它自己挡掉 ⇒ 书签反而藏不住（用户实锤：
+            // 播放页顶栏「分享图标旁边那个图标」没隐藏，正是 elt/cdy）。
+            // y 仍限制在 3%~14%：书签在 141-231（5%~8.5%），而「播放器样式」页的
+            // 预览图在页面中部（y 远大于 14%）⇒ 放宽 x 不会重新引入误伤。
+            loc[0] > dm.widthPixels * 0.72f &&
                 y > dm.heightPixels * 0.03f && y < dm.heightPixels * 0.14f
         } catch (_: Throwable) {
             false
