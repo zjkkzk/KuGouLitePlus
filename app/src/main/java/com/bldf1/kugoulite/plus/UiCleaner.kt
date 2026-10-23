@@ -1286,12 +1286,12 @@ object UiCleaner {
                 if (parent != null && (pn == "at6" || pn == "at7")) {
                     if (parent.visibility != View.GONE) {
                         parent.visibility = View.GONE
-                        hiddenByUs[parent] = tabBadgeRule
+                        if (!isInSettingsPage(parent)) hiddenByUs[parent] = tabBadgeRule
                         ModuleLog.log("UI净化[TAB角标] 隐藏父容器($pn)")
                     }
                 } else if (v.visibility != View.GONE) {
                     v.visibility = View.GONE
-                    hiddenByUs[v] = tabBadgeRule
+                    if (!isInSettingsPage(v)) hiddenByUs[v] = tabBadgeRule
                     ModuleLog.log("UI净化[TAB角标] 隐藏角标自身($rn)")
                 }
                 return
@@ -1309,7 +1309,7 @@ object UiCleaner {
             if (t.contains("即将过期")) {
                 if (v.visibility != View.GONE) {
                     v.visibility = View.GONE
-                    hiddenByUs[v] = memberBarRule
+                    if (!isInSettingsPage(v)) hiddenByUs[v] = memberBarRule
                 }
                 return
             }
@@ -1342,7 +1342,7 @@ object UiCleaner {
         ) {
             if (v.visibility != View.GONE) {
                 v.visibility = View.GONE
-                hiddenByUs[v] = ruleFor(Settings.KEY_UI_PLAY_PUBLISH_TIP)
+                if (!isInSettingsPage(v)) hiddenByUs[v] = ruleFor(Settings.KEY_UI_PLAY_PUBLISH_TIP)
             }
             return
         }
@@ -1362,7 +1362,7 @@ object UiCleaner {
             if (resourceName(v) == "yk") {
                 if (v.visibility != View.GONE) {
                     v.visibility = View.GONE
-                    hiddenByUs[v] = labRule
+                    if (!isInSettingsPage(v)) hiddenByUs[v] = labRule
                 }
             } else {
                 ModuleLog.log("UI净化[实验室] 去创作按钮(非yk id) 跳过: ${resourceName(v)}")
@@ -1960,7 +1960,7 @@ object UiCleaner {
                                     val target = if (climb > 0) climbParent(v, climb) else v
                                     if (target.visibility != View.GONE) {
                                         target.visibility = View.GONE
-                                        hiddenByUs[target] = rule
+                                        if (!isInSettingsPage(target)) hiddenByUs[target] = rule
                                     }
                                 }
                             } catch (_: Throwable) {}
@@ -2500,6 +2500,10 @@ object UiCleaner {
     private fun preHideSelf(view: View, fromVisibility: Boolean = false, fromMount: Boolean = false) {
         // ⭐ R167：同上，清单类页面整页跳过
         currentActivity?.get()?.let { if (isCleanListPage(it)) return }
+        // ⭐ R265：设置页一律不净化 —— 这里是 setId / 挂载路径的**总入口**，
+        // 比在 19 处 hiddenByUs 写入点逐个判断更早、更可靠（那些判断只能阻止
+        // 记录，阻止不了已经执行的 GONE/INVISIBLE 动作）。
+        if (isInSettingsPage(view)) return
         // ⭐ R222（5.3.1）：播放页广告遮罩在**挂载/setId 阶段**就藏。
         // 原来只有 scan 里的类名规则能命中，实测日志：
         //   UI净化[播放页广告] 隐藏: PlayerAdMaskView 已绘制=是 严格=是 1220x2169
@@ -2513,7 +2517,7 @@ object UiCleaner {
                     || cnAd.contains("SongAd") || cnAd.contains("PlayPageAd"))
             ) {
                 view.visibility = View.GONE
-                hiddenByUs[view] = ruleFor(Settings.KEY_UI_PLAY_AD)
+                if (!isInSettingsPage(view)) hiddenByUs[view] = ruleFor(Settings.KEY_UI_PLAY_AD)
                 ModuleLog.log("UI净化[播放页广告] 挂载即时隐藏: ${view.javaClass.simpleName}")
                 return
             }
@@ -2919,7 +2923,7 @@ object UiCleaner {
                         }
                     } else {
                         view.visibility = View.GONE
-                        hiddenByUs[view] = rule
+                        if (!isInSettingsPage(view)) hiddenByUs[view] = rule
                         ModuleLog.log("UI净化[${rule.name}] 即时预隐藏(文本挂载) text=\"$t0\" id=${rn ?: "-"} v=${Integer.toHexString(view.hashCode())} 已绘制=${if (wasDrawn(view)) "是" else "否"}")
                     }
                     break
@@ -2974,7 +2978,7 @@ object UiCleaner {
         if (textView != null && text != null && memberBarOn && !isOwn) {
             if (text.contains("即将过期") && view.visibility != View.GONE) {
                 view.visibility = View.GONE
-                hiddenByUs[view] = memberBarRule
+                if (!isInSettingsPage(view)) hiddenByUs[view] = memberBarRule
                 ModuleLog.log("UI净化[会员栏] 即将过期标已隐藏")
             }
         }
@@ -2993,7 +2997,7 @@ object UiCleaner {
         ) {
             if (view.visibility != View.GONE) {
                 view.visibility = View.GONE
-                hiddenByUs[view] = ruleFor(Settings.KEY_UI_MINE_TAB_BAR)
+                if (!isInSettingsPage(view)) hiddenByUs[view] = ruleFor(Settings.KEY_UI_MINE_TAB_BAR)
                 ModuleLog.log("UI净化[我的页分类栏] 隐藏(挂载判定)")
             }
             return
@@ -3059,7 +3063,7 @@ object UiCleaner {
         try {
             if (title.visibility != View.INVISIBLE) {
                 title.visibility = View.INVISIBLE
-                hiddenByUs[title] = rule
+                if (!isInSettingsPage(title)) hiddenByUs[title] = rule
                 invisibleHides[title] = true
                 labVerifyGen[title] = labVerifyGen[title] ?: 0
             }
@@ -3107,7 +3111,7 @@ object UiCleaner {
             if (isLab) {
                 if (grid.visibility != View.GONE) {
                     grid.visibility = View.GONE
-                    hiddenByUs[grid] = labRule
+                    if (!isInSettingsPage(grid)) hiddenByUs[grid] = labRule
                 }
             } else if (attempt >= LAB_VERIFY_TICKS.size - 1) {
                 restoreGrid(grid, "标题非实验室")
@@ -3146,7 +3150,7 @@ object UiCleaner {
                 if (c is ViewGroup && rowContainsGrid(c)) {
                     if (c.visibility != View.GONE) {
                         c.visibility = View.GONE
-                        hiddenByUs[c] = labRule
+                        if (!isInSettingsPage(c)) hiddenByUs[c] = labRule
                         labVerifyGen[c] = (labVerifyGen[c] ?: 0) + 1
                         verifyLabGrid(c, labVerifyGen[c]!!, 0)
                     }
@@ -3464,7 +3468,7 @@ object UiCleaner {
             val root = page ?: return false
             if (root.visibility != View.INVISIBLE) {
                 root.visibility = View.INVISIBLE
-                hiddenByUs[root] = freeListenRule
+                if (!isInSettingsPage(root)) hiddenByUs[root] = freeListenRule
                 invisibleHides[root] = true
                 ModuleLog.log(
                     "UI净化[免费听推广页] 内容已隐形 page1=${Integer.toHexString(root.hashCode())} " +
@@ -3647,7 +3651,7 @@ object UiCleaner {
                     }
                     if (target.visibility != View.GONE) {
                         target.visibility = View.GONE
-                        hiddenByUs[target] = memberBarRule
+                        if (!isInSettingsPage(target)) hiddenByUs[target] = memberBarRule
                         ModuleLog.log("UI净化[会员推广] 隐藏邀好友入口: ${target.javaClass.simpleName}")
                     }
                 }
@@ -3689,7 +3693,7 @@ object UiCleaner {
             }
             if (target.visibility != View.GONE) {
                 target.visibility = View.GONE
-                hiddenByUs[target] = rule
+                if (!isInSettingsPage(target)) hiddenByUs[target] = rule
                 ModuleLog.log("UI净化[${rule.name}] 隐藏(卡片): ${target.javaClass.simpleName} ${target.width}x${target.height} 触发文本=\"${extractText(textView) ?: ""}\" 已绘制=${if (wasDrawn(target)) "是" else "否"} 严格=${if (wasDrawnStrict(target)) "是" else "否"}")
                 // 布局后复核（真机实锤 15:04）：挂载时尺寸 0x0，爬升判定无法
                 // 用高度约束——若隐藏的容器布局后超过屏高 35%，说明爬升越界
@@ -3735,7 +3739,7 @@ object UiCleaner {
             savedHeights[target] = target.layoutParams?.height ?: -2
             target.visibility = View.GONE
             (target.layoutParams as? ViewGroup.LayoutParams)?.let { lp -> lp.height = 0; target.layoutParams = lp }
-            hiddenByUs[target] = rule
+            if (!isInSettingsPage(target)) hiddenByUs[target] = rule
             ModuleLog.log(
                 "UI净化[${rule.name}] 隐藏(feed槽位): ${target.javaClass.simpleName}" +
                     " v=${Integer.toHexString(target.hashCode())}" +
@@ -3826,7 +3830,7 @@ object UiCleaner {
                 if (target.visibility == View.GONE) return false
             }
             target.visibility = View.GONE
-            hiddenByUs[target] = rule
+            if (!isInSettingsPage(target)) hiddenByUs[target] = rule
             invisibleHides[target] = false
             // ⭐ R85「alpha 保险」：宿主会通过我们没覆盖的路径把已隐藏的视图**复活**。
             //   真机实锤（播放页书签槽）：预隐藏在尺寸 0 时就成功了（R82 的功劳），
@@ -4326,7 +4330,7 @@ object UiCleaner {
                     target.layoutParams = lp
                 }
             }
-            hiddenByUs[target] = rule
+            if (!isInSettingsPage(target)) hiddenByUs[target] = rule
             ModuleLog.log("UI净化[${rule.name}] 隐藏(整卡·item根): ${target.javaClass.simpleName} INVISIBLE+height=0")
             return true
         } catch (_: Exception) { return false }
