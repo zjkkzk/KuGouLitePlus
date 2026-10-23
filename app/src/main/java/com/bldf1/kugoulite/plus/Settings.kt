@@ -43,12 +43,9 @@ object Settings {
     const val KEY_UI_SEARCH_BANNER = "ui_search_banner"
     /** 搜索页默认页下方的频道推荐区（推荐/周榜/次元… + 卡片列表） */
     const val KEY_UI_SEARCH_CHANNEL = "ui_search_channel"
-    const val KEY_UI_SEARCH_CLOSE = "ui_search_close"
     const val KEY_UI_SEARCH_INDICATOR = "ui_search_indicator"
-    const val KEY_UI_SEARCH_VIP_BAR = "ui_search_vip_bar"
     const val KEY_UI_MEMBER_BAR = "ui_member_bar"
     const val KEY_UI_MEMBER_WIDGET = "ui_member_widget"
-    const val KEY_UI_MINE_SIGN_BAR = "ui_mine_sign_bar"
     const val KEY_UI_MINE_MEMBER_BADGE = "ui_mine_member_badge"
     const val KEY_UI_VIP_EXPIRE = "ui_vip_expire"
     const val KEY_UI_VIP_LOOK_BAR = "ui_vip_look_bar"

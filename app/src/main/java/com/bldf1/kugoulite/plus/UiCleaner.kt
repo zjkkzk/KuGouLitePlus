@@ -2310,7 +2310,6 @@ object UiCleaner {
         Settings.KEY_UI_MINE_MEDAL,
         Settings.KEY_UI_MINE_MEMBER_BADGE,
         Settings.KEY_UI_MINE_SEARCH,
-        Settings.KEY_UI_MINE_SIGN_BAR,
         Settings.KEY_UI_MINE_TAB_BAR,
         Settings.KEY_UI_MEMBER_BAR,
         Settings.KEY_UI_FREE_LISTEN_ICON,
