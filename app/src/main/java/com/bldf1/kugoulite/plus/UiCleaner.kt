@@ -2332,6 +2332,24 @@ object UiCleaner {
     private fun preHideSelf(view: View, fromVisibility: Boolean = false, fromMount: Boolean = false) {
         // ⭐ R167：同上，清单类页面整页跳过
         currentActivity?.get()?.let { if (isCleanListPage(it)) return }
+        // ⭐ R222（5.3.1）：播放页广告遮罩在**挂载/setId 阶段**就藏。
+        // 原来只有 scan 里的类名规则能命中，实测日志：
+        //   UI净化[播放页广告] 隐藏: PlayerAdMaskView 已绘制=是 严格=是 1220x2169
+        // ⇒ 广告已完整画到屏幕上才被藏，用户看到动画广告播了几秒才消失。
+        // 类名规则无法进入 setText/setId 的 ID 表，只能在这里补一道即时判定。
+        // 用 contains("Ad") 做一次快速预筛，避免热路径上做 4 次字符串匹配。
+        if (view.visibility != View.GONE) {
+            val cnAd = view.javaClass.name
+            if (cnAd.contains("Ad") && Settings.isFeature(view.context, Settings.KEY_UI_PLAY_AD)
+                && (cnAd.contains("PlayAd") || cnAd.contains("PlayerAd")
+                    || cnAd.contains("SongAd") || cnAd.contains("PlayPageAd"))
+            ) {
+                view.visibility = View.GONE
+                hiddenByUs[view] = ruleFor(Settings.KEY_UI_PLAY_AD)
+                ModuleLog.log("UI净化[播放页广告] 挂载即时隐藏: ${view.javaClass.simpleName}")
+                return
+            }
+        }
         // ⭐ R212：5.3.1 的书签容器是 elt（1062-1175,126-239，图标本体 cdy 1071-1166），
         // 5.3.0 是 dt7。两个 id 一起处理，保证双版本都零闪现。
         // ⭐ R200：播放页书签容器 dt7 —— 在 **setId 阶段**就钉成 INVISIBLE。
