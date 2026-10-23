@@ -400,7 +400,11 @@ object UiCleaner {
             // R205c: 5.3.1 的 c69 外层还有一个 RelativeLayout(926-1064) 圆形容器，
             // 只藏 c69 会留一个空圆圈 ⇒ 连父 1 层。（dg0 在 5.3.0 无此问题，
             // 但连父对它是幂等无害的：其父也是圆胶囊容器。）
-            listOf(), listOf(), idNames = listOf("dg0", "c69"), hideParentLevels = 1),
+            // ⚠️ R238（2026-10-23）：去掉 c69 —— 原生 dump 实测 c69(932-1058) 是
+            // **信息中心图标**（内含红点 c6b 数字"14"），不是免图标。
+            // 免图标是 dg3(656-782)。之前把 c69 当免图标写进这条规则，
+            // 结果信息中心被误藏（用户实锤「信息中心图标被误伤」）。
+            listOf(), listOf(), idNames = listOf("dg0"), hideParentLevels = 1),
             // ⚠️ 不再连父藏 dg1（2026-10-15 真机 A/B 实锤）：dg1(HnVisualEffectLayout)
             // 虽然只有 84×84（免图标位），但酷狗效果引擎内部联动——dg1 被藏后
             // **发现页整页背景渐变（含顶栏）消失变纯白**（用户报「顶栏背景不见了」）。
@@ -520,8 +524,14 @@ object UiCleaner {
         // ⚠️ 必须带 apg **祖先**门禁（新 ancestorIdNames）：c6_/ip9/f5k 是通用混淆
         // ID（红点数字/小圆点随处可能复用），且直接父容器都无 ID（父门禁够不着）——
         // 无门禁会全局误伤。
+        // ⚠️ R236（2026-10-23）：去掉 c6_ —— 5.3.1 里 **c6_ 是头像图片**
+        //（106,344-271,492，desc="个人空间"），且在 apg 祖先下 ⇒ 旧规则把**头像藏了**
+        //（用户实锤「头像被误伤」：白卡里只剩 Willie 文字，企鹅头像不见了）。
         Rule(Settings.KEY_UI_MINE_BADGE, "我的页顶栏红点",
-            listOf(), listOf(), idNames = listOf("c6_", "ip9", "f5k"),
+            // ⚠️ R237：f5k 在 5.3.1 是**信息中心图标本体**（不是红点）⇒ 去掉。
+            // 用户实锤「信息中心图标被误伤」：顶栏只剩设置一个图标。
+            // 红点若另有 id 再单独补。
+            listOf(), listOf(), idNames = listOf("ip9"),
             ancestorIdNames = listOf("apg")),
         // ⚠️ R87：底栏有**两套**角标容器（都在 kg 导航栏布局 res/z/ae5.xml，
         // 5 个 id 均只此一处使用、零复用）：
@@ -565,8 +575,10 @@ object UiCleaner {
         Rule(Settings.KEY_UI_SEARCH_VIP_BAR, "搜索结果VIP条",
             listOf(), listOf(), idNames = listOf("ezd", "ezg"),
             requireActivityName = "Search"),
+        // ⚠️ R236：c6a 在 5.3.1 也是**头像**（106,344-271,492）⇒ 误伤。
+        // 真正的「2天后过期」胶囊是 c6c（304,412-418,492，desc="会员中心"）。
         Rule(Settings.KEY_UI_VIP_EXPIRE, "VIP过期胶囊",
-            listOf(), listOf(), idNames = listOf("c6a")),
+            listOf(), listOf(), idNames = listOf("c6c")),
         Rule(Settings.KEY_UI_VIP_LOOK_BAR, "VIP去看看残条",
             listOf(), listOf(), idNames = listOf("f96")),
         // 播放页「随性分享」按钮（用户要求移除，2026-10-22）。
