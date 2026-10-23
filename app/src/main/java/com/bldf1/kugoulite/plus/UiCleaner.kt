@@ -350,6 +350,11 @@ object UiCleaner {
         // ⭐ 5.3.0 设置页「福利」区块：福利中心/活动中心/鹅票票-演唱会门票/
         // 酷狗商城/唱片店/听歌免流量，共 6 个引流入口（uiautomator 实录）。
         // 每行是独立的 g6r 容器，用 sectionMode 连标题一起藏。
+        // ⛔ R242（2026-10-23，用户要求）：**移除设置页净化规则**。
+        // 设置页的「福利」区块（福利中心/活动中心/鹅票票/酷狗商城/唱片店/听歌免流量）
+        // 恢复原生显示。规则体保留在下方注释里，需要时把注释去掉即可恢复。
+        // 原开关 KEY_UI_SETTINGS_WELFARE 在面板中仍可控制（当前无消费者）。
+        /*
         Rule(Settings.KEY_UI_SETTINGS_WELFARE, "设置页福利区块",
             // ⚠️ R213 曾把「会员中心」加进本规则关键词，结果**整个「我的」页被清空**。
             // 原因：uiautomator 看到的祖先链是**布局稳定后**的，而 setId 阶段父链尚未建完，
@@ -364,6 +369,7 @@ object UiCleaner {
             //（「福利」二字命中了更上层的容器节点，hideParentLevels=3 把它整块带走）
             // ⇒ 已回滚。区块标题保持显示。
             hideParentLevels = 3),
+        */
         Rule(Settings.KEY_UI_INVITE, "邀请提示",
             listOf("InviteTip", "InviteView"), listOf("邀请好友", "三个月会员", "邀好友", "组队领"),
             // ⚠️ ID 门禁（真机实锤 10-12）：feed 推荐语槽位 b5w 的文案可能包含
