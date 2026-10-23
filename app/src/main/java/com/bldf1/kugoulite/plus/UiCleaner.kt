@@ -466,22 +466,13 @@ object UiCleaner {
         // ⇒ 该规则整体爬升，而 bsd 的父是整张头像卡 ⇒ 整页内容被清空。
         Rule(Settings.KEY_UI_MINE_FREE_BAR, "我的页免费听条",
             listOf(), listOf(), idNames = listOf("bsd")),
-        // ⭐ R234：「我的」页顶栏「赚钱」tab = dkc(216-318)，父 = hta(顶栏 tab 容器)。
-        // 同一个 dkc 在发现页是「乐库」（父 fe7）⇒ 用 parentIdNames 精确区分，
-        // 既能藏掉「赚钱」，又不会重演 R204 那次把「乐库」藏掉的事故。
-        // ⚠️ dkc 的直接父是**匿名 LinearLayout**（hta 是爷爷），parentIdNames 匹配不上
-        // ⇒ 改用 ancestorIdNames。发现页的 dkc 祖先链里没有 hta（是 fe7），能精确区分。
-        // ⚠️ ancestorIdNames=[hta] 也不行：**发现页的 dkc 祖先链里同样有 hta**
-        // ⇒ 又把「乐库」藏了（实测顶栏只剩「发现」）。
-        // 改用 requireMinePage 页面门禁（同 MINE_PAGE_RULE_KEYS 里的其它我的页规则）。
-        // ⚠️ R245：requireMinePage 在 setId 阶段判定不可靠 —— 回归实锤：
-        // 发现页顶栏「乐库」(MainTopImageView 102x54, 也是 dkc) 被本条藏了 2 次
-        // （严格=是，真闪现）。改用 curPageId 页归属（R168 基建）：
-        // 发现页算 "discovery"、我的页算 "main"，setId 阶段 curPageId 未更新时为空
-        // ⇒ 不匹配 ⇒ 不藏（安全方向）。
-        Rule(Settings.KEY_UI_MINE_EARN_TAB, "我的页赚钱tab",
-            listOf(), listOf(), idNames = listOf("dkc"),
-            pageIds = setOf("main")),
+        // ⛔ R246：删除「我的页赚钱tab」规则。
+        // 5.3.1 里 dkc 同时是发现页「乐库」和我的页「赚钱」，试过四种门禁全部失败：
+        //   · requireMinePage   → setId 阶段判定不可靠，乐库被藏（回归实锤严格=是）
+        //   · ancestorIdNames=[hta] → 两页祖先链都有 hta，乐库又被藏
+        //   · parentIdNames=[hta]   → dkc 直接父是匿名 LinearLayout，永不匹配
+        //   · pageIds=[main]        → 发现页 curPageId 也算 main，乐库第三次被藏
+        // 取舍：**乐库是整页入口，误伤代价远大于「赚钱」tab 多显示一个**。整条删除。
         // R215 已禁用：dkc 实为发现页顶栏「乐库」tab（MainTopImageView 三个 tab
         // 跨页共用一组 id：dk8=发现|我的、dkd=免费听|赚钱、dkc=乐库）。
         // R204 的 maxYRatio=0.15 没命中「我的」页底部 tab（y=0.93），
