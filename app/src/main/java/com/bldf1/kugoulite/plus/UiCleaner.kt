@@ -579,8 +579,14 @@ object UiCleaner {
         // ezg 在「最近播放」列表项里复用 ⇒ 已由「列表页VIP推广条」用 minWRatio 处理失败，
         // 且 ezg/ezd 在 5.3.1 的搜索页暂时没出现（VIP 用户不下发）⇒ 本条仅保留 id 匹配，
         // 命中时由 matchIdRule 的几何门禁兜底。
-        Rule(Settings.KEY_UI_SEARCH_VIP_BAR, "搜索结果VIP条",
-            listOf(), listOf(), idNames = listOf("ezd", "ezg")),
+        // ⛔ R259：**整条删除「搜索结果VIP条」**。
+        // 误伤过两次（R240、R258）：ezg 在「最近播放」歌曲列表项里复用，
+        // 把列表项的文字容器藏掉 ⇒ 列表只剩封面。试过的门禁全失败：
+        //   · requireActivityName="Search" → 搜索页是 MediaActivity，规则不执行
+        //   · 拆掉该门禁                  → 列表页误伤（R248）
+        //   · ancestorIdNames=[e1n]      → 最近播放页同样有 e1n，仍误伤（R258）
+        // 而搜索页这条 VIP 推广条**从未出现过**（账号是 VIP，不下发）
+        // ⇒ 空转、零收益、两次误伤。整条删除。
         // ❌ R241 已回滚：想用 minWRatio=0.95 区分「推广条 vs 列表项」失败 ——
         // 歌曲列表项的**外层容器也是全宽 1220**（文字区 195-905 只是它的子节点），
         // 宽度门禁把整个列表都命中了 ⇒ 列表文字再次全没。
