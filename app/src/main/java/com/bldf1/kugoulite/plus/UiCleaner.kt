@@ -292,9 +292,12 @@ object UiCleaner {
         // 若干无 id 节点），而卡片本体（图片/底板）没规则覆盖 ⇒ 图片先渲染 → 闪一下。
         // i4z 是广告角标标签，其父即卡片容器 ⇒ 用连父 1 层藏整卡。
         // 风险由 R224 全屏安全阀兜底（爬到接近全屏会放弃）。
+        // R227：补类名兜底 —— 广告本体是 CommentGDTAdsView（广点通 SDK 专属 View），
+        // 用类名匹配比连父层数稳定（宿主改层级也不怕）。
+        // 日志实证：隐藏 CommentGDTAdsView 已绘制=否 0x0（布局前就 GONE，零闪现）。
         Rule(Settings.KEY_UI_SEARCH_AD, "搜索推广卡片",
-            listOf(), listOf(),
-            idNames = listOf("i4z"), hideParentLevels = 1),
+            listOf("GDTAds"), listOf(),
+            idNames = listOf("i4z"), hideParentLevels = 3),
         Rule(Settings.KEY_UI_SEARCH_AD, "搜索推广",
             listOf("SearchAd", "SearchPromo"), listOf("广告", "推广"),
             excludeIdNames = listOf("b5w"),
