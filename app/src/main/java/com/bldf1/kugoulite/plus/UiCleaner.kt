@@ -530,9 +530,15 @@ object UiCleaner {
         // 播放页「随性分享」按钮（用户要求移除，2026-10-22）。
         // 结构：dq6(TextView 文本"随性分享") → dq4 → dq7(按钮容器)，
         // 连父藏 2 层落到 dq7。用文本 + id 双保险。
+        // ⚠️ R223（5.3.1 严重误伤修复）：hideParentLevels 从 2 改为 1。
+        // 5.3.0 结构：dq6(文字) → dq4 → dq7(按钮容器)，需要爬 2 层。
+        // 5.3.1 结构：dq6(ImageView) → dq7(LinearLayout 按钮容器)，只差 1 层！
+        // 仍按 2 爬 ⇒ 直接爬到**全屏 ConstraintLayout(1220x2712)** 并 GONE
+        // ⇒ 整个播放页控件全没了（用户实锤「就是误伤的」）。
+        // 日志证据：UI净化[随性分享按钮] 隐藏: ConstraintLayout 1220x2712
         Rule(Settings.KEY_UI_PLAY_SHARE_BTN, "随性分享按钮",
             listOf(), listOf("随性分享"), idNames = listOf("dq6"),
-            hideParentLevels = 2),
+            hideParentLevels = 1),
         Rule(Settings.KEY_UI_PLAY_PUBLISH_TIP, "发布提示",
             listOf(), listOf("使用此音乐发布", "使用此应用发布")),
         Rule(Settings.KEY_UI_CHANNEL, "频道推荐区块",
