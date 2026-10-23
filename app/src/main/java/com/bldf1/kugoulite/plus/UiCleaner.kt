@@ -2275,8 +2275,33 @@ object UiCleaner {
     private val SETTINGS_ROOT_IDS = listOf("av7")
 
     /** 视图是否位于设置页（R255） */
-    private fun isInSettingsPage(view: View): Boolean =
-        hasAncestorById(view, SETTINGS_ROOT_IDS)
+    private fun isInSettingsPage(view: View): Boolean {
+        // 1) 常规：从视图往上爬（view 已挂到树上时可用）
+        if (hasAncestorById(view, SETTINGS_ROOT_IDS)) return true
+        // 2) 兜底（R266）：ListView 滑动时新建的 item 可能还没挂到 av7 下
+        //    （parent 链中断）⇒ 上面的爬升判定失败 ⇒ 泄漏到净化逻辑。
+        //    改用当前 Activity 的 decorView 判断整棵树——它始终是完整的。
+        return try {
+            val d = currentActivity?.get()?.window?.decorView ?: return false
+            resourceName(d) in SETTINGS_ROOT_IDS ||
+                hasAncestorById(d, SETTINGS_ROOT_IDS) ||
+                (d as? ViewGroup)?.let { findDescendantId(it, SETTINGS_ROOT_IDS) } == true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    /** 在给定子树里找一个 id 属于 idNames 的节点（深度优先，最多 40 层） */
+    private fun findDescendantId(v: View, idNames: List<String>, depth: Int = 0): Boolean {
+        if (depth > 40) return false
+        if (resourceName(v) in idNames) return true
+        if (v is ViewGroup) {
+            for (i in 0 until v.childCount) {
+                if (findDescendantId(v.getChildAt(i), idNames, depth + 1)) return true
+            }
+        }
+        return false
+    }
 
     private val MINE_PAGE_RULE_KEYS = setOf(
         Settings.KEY_UI_MINE_EARN_TAB,
