@@ -1601,7 +1601,7 @@ object UiCleaner {
         }
 
         // ③ 文本关键词规则（预筛后匹配；已在①处理过的规则不重复跑）
-        // ⭐ R193 诊断：设置页福利规则为何不触发
+        // （R193 诊断日志：原用于排查设置页福利规则，规则已于 R243 删除）
         if (text != null && text.contains("福利")) {
             ModuleLog.log("R193 命中福利文本 text=$text rn=$rn depth=$depth promo=${mayBePromo(text)} stop=$stop hidden=${hidden[0]}")
         }
@@ -1700,7 +1700,7 @@ object UiCleaner {
             // 语可能含关键词（"免费听新歌"），无门禁会误伤整个推荐卡 item
             // （整卡隐藏 GONE+height=0 → feed 底部大片空缺+分页 footer 错乱）
             // ⭐ R192：原来写死 rn=="b6b"（发现页区块标题槽位）。设置页的区块标题
-            // ID 是 "title" ⇒ 设置页福利规则永远过不了这个门禁、一次都没执行。
+            // ID 是 "title"（设置页区块标题）。
             // 放宽为 b6b 或 title；误伤风险由 textKeywords 兜底（只有命中关键词的
             // 标题才会走到这里，如「福利中心」而非「账号和绑定设置」）。
             // R217：5.3.1 信息流区块标题的 id 是 b6d（dump 实测：

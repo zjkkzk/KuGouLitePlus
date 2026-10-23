@@ -55,8 +55,6 @@ object Settings {
     const val KEY_UI_PLUS = "ui_plus_btn"
     const val KEY_UI_INVITE = "ui_invite_tip"
     const val KEY_UI_LAB = "ui_lab"
-    /** 设置页「福利」区块（福利中心/活动中心/鹅票票/酷狗商城/唱片店/听歌免流量） */
-    const val KEY_UI_SETTINGS_WELFARE = "ui_settings_welfare"
     /** 「我的」页顶部「赚钱」tab（5.3.1: dkc 图片 tab） */
     const val KEY_UI_MINE_EARN_TAB = "ui_mine_earn_tab"
     /** 「我的」页免费听整块（5.3.1: bsd，含图标+文字+蓝线） */
