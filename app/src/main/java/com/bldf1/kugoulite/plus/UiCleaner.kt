@@ -399,7 +399,12 @@ object UiCleaner {
         Rule(Settings.KEY_UI_MINE_TAB_BAR, "我的页分类栏",
             listOf("MineSpecialTabView"), listOf()),
         Rule(Settings.KEY_UI_MINE_EARN, "我的页赚钱入口",
-            listOf(), listOf(), idNames = listOf("dk_"),
+            // ⭐ R247：补 5.3.1 的 id **dkc**（5.3.0 是 dk_）。
+            // 沿用 R72 定稿的 ancestorClass="TwoViewSwitchLayout" —— 用户提醒「以前怎么区分的」
+            // 才让我想起：dumpsys 实证 我的页赚钱(dkc) 挂在 TwoViewSwitchLayout(0,0-1220,144) 内，
+            // 而发现页乐库(dkc) 在它之外的另一个 MainTopImageView(216,174-318,228) 上。
+            // ⇒ 这个老办法在 5.3.1 依然有效，我之前 R246 断言「无解」是错的。
+            listOf(), listOf(), idNames = listOf("dk_", "dkc"),
             // ⭐ R72 定稿：只靠 `ancestorClass` + `requireMinePage` 两道门禁。
             //   真机 dump 实锤（v5.2.9）：发现页顶栏的 dk_（乐库 tab）与我的页顶栏的 dk_
             //   （赚钱入口）**同类同 ID**（都是 MainTopImageView），但**祖先链不同**——
@@ -466,13 +471,9 @@ object UiCleaner {
         // ⇒ 该规则整体爬升，而 bsd 的父是整张头像卡 ⇒ 整页内容被清空。
         Rule(Settings.KEY_UI_MINE_FREE_BAR, "我的页免费听条",
             listOf(), listOf(), idNames = listOf("bsd")),
-        // ⛔ R246：删除「我的页赚钱tab」规则。
-        // 5.3.1 里 dkc 同时是发现页「乐库」和我的页「赚钱」，试过四种门禁全部失败：
-        //   · requireMinePage   → setId 阶段判定不可靠，乐库被藏（回归实锤严格=是）
-        //   · ancestorIdNames=[hta] → 两页祖先链都有 hta，乐库又被藏
-        //   · parentIdNames=[hta]   → dkc 直接父是匿名 LinearLayout，永不匹配
-        //   · pageIds=[main]        → 发现页 curPageId 也算 main，乐库第三次被藏
-        // 取舍：**乐库是整页入口，误伤代价远大于「赚钱」tab 多显示一个**。整条删除。
+        // R246 曾试图建独立规则处理 dkc，四种门禁（requireMinePage / ancestorIdNames /
+        // parentIdNames / pageIds）全部失败后删除。**R247 改用 R72 的 ancestorClass 成功**
+        // —— 见上方「我的页赚钱入口」规则的 idNames=["dk_","dkc"]。
         // R215 已禁用：dkc 实为发现页顶栏「乐库」tab（MainTopImageView 三个 tab
         // 跨页共用一组 id：dk8=发现|我的、dkd=免费听|赚钱、dkc=乐库）。
         // R204 的 maxYRatio=0.15 没命中「我的」页底部 tab（y=0.93），
