@@ -504,9 +504,16 @@ object UiCleaner {
         // 四图标容器（dg0/f5i/c67/f5j = 免|搜索|信息中心|设置），只摘 f5i。
         // ⚠️ 用**父容器 ID 门禁**而非页面门禁：父容器在挂载瞬间就确定 → 绘制
         // 前即时预隐藏，不会像 requireMinePage 那样翻页时先闪一下再藏。
+        // ⭐ R235（5.3.1）：搜索图标 id 从 f5i 变成 **f5l**(932-1058)，父是 api（图标区）
+        // 不是 apg。旧规则两个条件都不成立 ⇒ 搜索图标一直没藏。
+        // 「信息中心」是 f5m(1070-1196)，必须保留 ⇒ 只藏 f5l。
         Rule(Settings.KEY_UI_MINE_SEARCH, "我的页搜索图标",
-            listOf(), listOf(), idNames = listOf("f5i"),
-            parentIdNames = listOf("apg")),
+            listOf(), listOf(), idNames = listOf("f5i", "f5l"),
+            requireMinePage = true),
+        // ⭐ R235：「福利与活动」两个入口（isw 整行：iu1 左 iu2 右），用户要求隐藏。
+        Rule(Settings.KEY_UI_MINE_WELFARE, "我的页福利入口",
+            listOf(), listOf(), idNames = listOf("isw"),
+            requireMinePage = true),
         // 我的页右上角「信息中心/设置」图标的红点（Round 46，真机 dump 实锤）：
         // 信息中心 c67 的红点 = 无 ID FrameLayout → c6_(红点底 ImageView)+ip9(数字
         // TextView)；设置 f5j 的红点 = f5k(15x15 小圆点)。只藏叶子，图标本体保留。

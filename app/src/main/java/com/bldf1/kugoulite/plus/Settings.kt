@@ -75,6 +75,9 @@ object Settings {
     const val KEY_UI_MINE_EARN = "ui_mine_earn"
     const val KEY_UI_MINE_MEDAL = "ui_mine_medal"
     const val KEY_UI_MINE_SEARCH = "ui_mine_search"
+    /** 我的页「福利与活动」两入口（5.3.1: isw） */
+    const val KEY_UI_MINE_WELFARE = "ui_mine_welfare"
+    /** 我的页「搜索」图标（5.3.1: f5l）已复用 KEY_UI_MINE_SEARCH */
     /** 我的页右上角信息中心/设置图标的红点（Round 46，默认隐藏） */
     const val KEY_UI_MINE_BADGE = "ui_mine_badge"
     const val KEY_UI_TAB_BADGE = "ui_tab_badge"
