@@ -301,7 +301,7 @@ object UiCleaner {
         // 日志实证：隐藏 CommentGDTAdsView 已绘制=否 0x0（布局前就 GONE，零闪现）。
         Rule(Settings.KEY_UI_SEARCH_AD, "搜索推广卡片",
             listOf("GDTAds"), listOf(),
-            idNames = listOf(), hideParentLevels = 3),
+            idNames = listOf("i4z"), hideParentLevels = 3),
         Rule(Settings.KEY_UI_SEARCH_AD, "搜索推广",
             listOf("SearchAd", "SearchPromo"), listOf("广告", "推广"),
             excludeIdNames = listOf("b5w"),
@@ -869,7 +869,18 @@ object UiCleaner {
      */
     private fun isBookmarkPosition(v: View): Boolean {
         return try {
-            if (v.width <= 0 || v.height <= 0) return false
+            // ⭐ R257（2026-10-23）：尺寸未布局时（setId / 挂载早期）用**父容器**兜底。
+            // 实锤：用户「播放页书签图标几秒钟后才隐藏」—— 原实现在 width/height<=0 时
+            // 直接 return false ⇒ setId / 挂载两条即时路径全部失败 ⇒ 只能等 4 秒周期扫描。
+            // dump 实测书签槽位结构：
+            //   en6[908,126-1166,246] > en5[908,126-1166,246] > elt[941,141-1031,231](书签)
+            //   en5 下还有 dvx（分享图标）—— 但 dvx 不在 BOOKMARK_IDS 里，不会被本条命中。
+            // 设置页有 R255 的 av7 全局跳过兜着，即使 en5 在别处复用也不会误伤。
+            if (v.width <= 0 || v.height <= 0) {
+                val p = v.parent as? View ?: return false
+                val pn = resourceName(p)
+                return pn == "en5" || (p.parent as? View)?.let { resourceName(it) } == "en5"
+            }
             val loc = IntArray(2)
             v.getLocationOnScreen(loc)
             val dm = v.resources.displayMetrics
