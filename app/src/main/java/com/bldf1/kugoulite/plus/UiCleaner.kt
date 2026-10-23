@@ -339,9 +339,13 @@ object UiCleaner {
         // 别处可能有同名节点（铁律：同类同 id 跨页复用是最大误伤源）。
         // R202: 去掉 ancestorIdNames(["e1k"]) —— 祖先在 setId 阶段尚未挂好
         // ⇒ 门禁不成立 ⇒ 等 scan ⇒ 日志实证"已绘制=是"。
+        // ⚠️ R251：去掉 requireActivityName="Search" —— 搜索页 Activity 是 MediaActivity，
+        // 该门禁让规则在 5.3.1 **从未执行**（日志零记录）。
+        // 全跳 dump 实证：gue 是「推荐 / 周榜」双栏 ViewPager 的容器(15,970-1205,2245)，
+        // gub 只是卡片右上角的「更多」链接(646,1084-767,1138)——藏它没意义。
+        // 改为只藏 gue 整块。风险：gue 若在别处复用会误伤，故保留 ancestorIdNames 兜底。
         Rule(Settings.KEY_UI_SEARCH_CHANNEL, "搜索页频道推荐",
-            listOf(), listOf(), idNames = listOf("gub", "gue"),
-            requireActivityName = "Search"),
+            listOf(), listOf(), idNames = listOf("gue")),
         Rule(Settings.KEY_UI_MEMBER_BAR, "会员栏",
             listOf("VipBar", "MemberBar", "VipBanner"), listOf("开通会员", "开通概念版", "即将过期", "自动续费")),
         Rule(Settings.KEY_UI_MEMBER_WIDGET, "会员控件",
@@ -546,9 +550,10 @@ object UiCleaner {
         // dump 实测：View gu7 [520,823][700,832]（180x9 的一排小点），
         // 祖先 gu2(全屏) > e1n(0,243-1220,2712) > anon(0,243-1060)。
         // 用户实锤：Banner 被藏了，但下面这排小点还在。
+        // R252：gu4 已在 R250 清空（5.3.1 用 gu7，见下方 R221 那条），此条已完全空转，
+        // 一并去掉 Activity 门禁避免误导（留着空规则无害，但没有意义再去拦 Activity）。
         Rule(Settings.KEY_UI_SEARCH_INDICATOR, "搜索推广指示器",
-            listOf(), listOf(), idNames = listOf(),
-            requireActivityName = "Search"),
+            listOf(), listOf(), idNames = listOf()),
         // R221（5.3.1 适配）：gu7 单独一条、**不带 requireActivityName 静态门禁**。
         // 原因：requireActivityName 在 setId 阶段依赖 currentActivity，
         // 那一刻未必已是 Search ⇒ 门禁失败 ⇒ 退化到 4 秒扫描 ⇒（已绘制=是）闪现。
