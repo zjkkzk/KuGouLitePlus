@@ -268,7 +268,11 @@ object UiCleaner {
             // R139：dt7 改用 **INVISIBLE 占位**（见 scan 里的处理），不再用规则 GONE ——
             // GONE 会让布局少一格，标题整体右移；INVISIBLE 保留占位，标题自然居中，
             // 也不需要 translationX 补偿（那种补偿会压制切歌动画，之前踩过）。
-            listOf(), listOf(), idNames = listOf("elq"), maxYRatio = 0.12f,
+            // ⚠️ R232（2026-10-23）：idNames 去掉 elq —— elq 被「播放器样式」设置页
+            // 复用，且该页预览图就在顶部 12% 以内，maxYRatio=0.12 挡不住
+            // ⇒ 日志「UI净化[播放页书签] 隐藏: KGUIFrameLayout ×12」整页预览图被藏光。
+            // 书签真正的隐藏走 BOOKMARK_IDS 的专属路径（5 处均已加 isBookmarkPosition 门禁）。
+            listOf(), listOf(), idNames = listOf(),
             alphaShield = false),
         // ⚠️ R79 同上：「去每周福利条」也是死开关，实际由「去播放页广告」控制。已改回自己的 key。
         Rule(Settings.KEY_UI_WEEKLY_WELFARE, "每周福利条",
