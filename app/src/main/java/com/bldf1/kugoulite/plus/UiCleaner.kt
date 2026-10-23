@@ -366,12 +366,16 @@ object UiCleaner {
             // "组队领…VIP"（用户推荐语），无门禁会把**正常推荐卡文案**当成邀请
             // 提示隐藏，且发生在已绘制之后（闪现）。同 b6b/b5w 门禁思路。
             excludeIdNames = listOf("b5w")),
-        // ⛔ R254（2026-10-23，用户要求）：删除「概念实验室」规则。
-        // 用户明确「设置页不该有净化」，而这行的唯一落点就在设置页
-        //（设置 › 关于 › 概念实验室）。它靠文本命中卡片容器，
-        // sectionMode/useCardHide 在设置页 ListView 结构上本就返回 false，
-        // 结果是**规则没真正生效，只在每次滑动时触发一次「分离还原→再藏」的闪烁**
-        //（实测 244 次真还原）。删掉它，设置页彻底干净。
+        // ⭐ R256（2026-10-23）：**恢复**「概念实验室」规则。
+        // R254 曾整条删除，理由是「设置页不该净化」——判断不完整：这条规则
+        // 在**发现页信息流底部**也有落点（实测区块：邀好友得年卡 / 3人组队领VIP /
+        // 免费领下载券 / AI写 / AI唱），删掉后发现页那整块又露出来了（用户实锤）。
+        // 正确做法：规则保留，设置页由 R255 的 SETTINGS_ROOT_IDS(av7) 全局跳过拦掉，
+        // 发现页则正常生效（sectionMode/useCardHide 在 feed 上是有效的，
+        // 只有在设置页 ListView 上才返回 false）。
+        Rule(Settings.KEY_UI_LAB, "概念实验室",
+            listOf("ConceptLab", "Laboratory", "LabEntry"), listOf("概念实验室"),
+            sectionMode = true, useCardHide = true),
         Rule(Settings.KEY_UI_LOGIN_GUIDE, "登录引导",
             listOf("LoginGuide", "GuideLogin", "LoginTip"), listOf("登录后畅听", "立即登录")),
         Rule(Settings.KEY_UI_FREE_LISTEN_ENTRY, "免费听入口",
