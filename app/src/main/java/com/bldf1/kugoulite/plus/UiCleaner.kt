@@ -474,9 +474,14 @@ object UiCleaner {
         // ⚠️ ancestorIdNames=[hta] 也不行：**发现页的 dkc 祖先链里同样有 hta**
         // ⇒ 又把「乐库」藏了（实测顶栏只剩「发现」）。
         // 改用 requireMinePage 页面门禁（同 MINE_PAGE_RULE_KEYS 里的其它我的页规则）。
+        // ⚠️ R245：requireMinePage 在 setId 阶段判定不可靠 —— 回归实锤：
+        // 发现页顶栏「乐库」(MainTopImageView 102x54, 也是 dkc) 被本条藏了 2 次
+        // （严格=是，真闪现）。改用 curPageId 页归属（R168 基建）：
+        // 发现页算 "discovery"、我的页算 "main"，setId 阶段 curPageId 未更新时为空
+        // ⇒ 不匹配 ⇒ 不藏（安全方向）。
         Rule(Settings.KEY_UI_MINE_EARN_TAB, "我的页赚钱tab",
             listOf(), listOf(), idNames = listOf("dkc"),
-            requireMinePage = true),
+            pageIds = setOf("main")),
         // R215 已禁用：dkc 实为发现页顶栏「乐库」tab（MainTopImageView 三个 tab
         // 跨页共用一组 id：dk8=发现|我的、dkd=免费听|赚钱、dkc=乐库）。
         // R204 的 maxYRatio=0.15 没命中「我的」页底部 tab（y=0.93），
