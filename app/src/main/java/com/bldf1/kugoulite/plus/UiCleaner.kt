@@ -1098,7 +1098,8 @@ object UiCleaner {
                 if (child != null && child.id != android.view.View.NO_ID &&
                     child.visibility == android.view.View.VISIBLE &&
                     Settings.isFeature(child.context, Settings.KEY_UI_PLAY_BOOKMARK) &&
-                    child.resources.getResourceEntryName(child.id) in BOOKMARK_IDS
+                    child.resources.getResourceEntryName(child.id) in BOOKMARK_IDS &&
+                    isBookmarkPosition(child)
                 ) {
                     child.visibility = android.view.View.INVISIBLE
                 }
