@@ -3599,6 +3599,26 @@ object UiCleaner {
             // 父容器的 ID 命中白名单才允许爬升，否则退化为只藏自身
             val levels = climbLevels(view, rule)
             val target = if (rule.collapseHeight) view else climbParent(view, levels)
+            // ⭐ R224 安全阀（2026-10-23 血泪）：hideParentLevels 是**硬编码层数**，
+            // 宿主改版一旦让目标节点的层级变化，就会多爬一层命中整页容器。
+            // 实例：5.3.1 的「随性分享」从 dq6→dq4→dq7(2层) 变成 dq6→dq7(1层)，
+            // 仍按 2 爬 ⇒ 命中全屏 ConstraintLayout(1220x2712) 并 GONE
+            // ⇒ 播放页所有控件消失（用户实锤）。
+            // 判据：目标明显是「整页级」容器时放弃 —— 高度 ≥ 屏幕 80%，
+            // 且是命中节点自身高度的 3 倍以上（排除本来就是全屏元素的情况）。
+            if (levels > 0 && target !== view) {
+                try {
+                    val dmH = view.resources.displayMetrics.heightPixels
+                    val tvH = view.height
+                    if (target.height >= dmH * 0.8f && (tvH <= 0 || target.height > tvH * 3)) {
+                        ModuleLog.log(
+                            "UI净化[${rule.name}] 连父安全阀拦截: ${target.javaClass.simpleName}" +
+                                " ${target.width}x${target.height} (levels=$levels)"
+                        )
+                        return false
+                    }
+                } catch (_: Throwable) {}
+            }
             if (rule.collapseHeight) {
                 if (target.visibility == View.GONE && target.layoutParams?.height == 0) return false
                 savedHeights[target] = target.layoutParams?.height ?: -2
