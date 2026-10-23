@@ -366,9 +366,12 @@ object UiCleaner {
             // "组队领…VIP"（用户推荐语），无门禁会把**正常推荐卡文案**当成邀请
             // 提示隐藏，且发生在已绘制之后（闪现）。同 b6b/b5w 门禁思路。
             excludeIdNames = listOf("b5w")),
-        Rule(Settings.KEY_UI_LAB, "概念实验室",
-            listOf("ConceptLab", "Laboratory", "LabEntry"), listOf("概念实验室"),
-            sectionMode = true, useCardHide = true),
+        // ⛔ R254（2026-10-23，用户要求）：删除「概念实验室」规则。
+        // 用户明确「设置页不该有净化」，而这行的唯一落点就在设置页
+        //（设置 › 关于 › 概念实验室）。它靠文本命中卡片容器，
+        // sectionMode/useCardHide 在设置页 ListView 结构上本就返回 false，
+        // 结果是**规则没真正生效，只在每次滑动时触发一次「分离还原→再藏」的闪烁**
+        //（实测 244 次真还原）。删掉它，设置页彻底干净。
         Rule(Settings.KEY_UI_LOGIN_GUIDE, "登录引导",
             listOf("LoginGuide", "GuideLogin", "LoginTip"), listOf("登录后畅听", "立即登录")),
         Rule(Settings.KEY_UI_FREE_LISTEN_ENTRY, "免费听入口",
@@ -1863,7 +1866,14 @@ object UiCleaner {
             val selfHit = t != null && rule.textKeywords.any { t.contains(it) }
             if (!selfHit && !subtreeHasId(v, rule, 0) && !subtreeStillMatches(v, rule, 0)) return false
         }
-        if (rule.classKeywords.isNotEmpty()) {
+        // ⭐ R253（2026-10-23）：类名检查**只在规则没有文本关键词时**才强制。
+        // 实锤：设置页滑动时「概念实验室」被「分离还原」4 次 ⇒ 每滑一屏闪一次。
+        // 原因：该规则同时有 classKeywords(ConceptLab…) + textKeywords(概念实验室)，
+        // 实际是**靠文本**命中的卡片容器（KGUIRelativeLayout，类名不含 ConceptLab）
+        // ⇒ 这里判定"不再匹配" → 还原 → 再藏 → 闪。
+        // 规则只要带了文本关键词，就说明它是按内容识别目标的，类名只是辅助兜底，
+        // 不应在"是否仍然匹配"里成为否决条件（保守方向：宁可判为仍匹配 = 不还原）。
+        if (rule.classKeywords.isNotEmpty() && rule.textKeywords.isEmpty()) {
             val cn = v.javaClass.name
             if (rule.classKeywords.none { cn.contains(it, ignoreCase = true) }) return false
         }
