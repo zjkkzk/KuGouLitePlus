@@ -2795,6 +2795,13 @@ object UiCleaner {
                 for (rule in rules) {
                 if (rule.pageIds.isNotEmpty() && curPageId !in rule.pageIds) continue
                     if (!Settings.isFeature(ctx, rule.key)) continue
+                    // ⭐ R240：Activity 名门禁（挂载路径此前同样漏检）。
+                    // 实锤：ezd/ezg 在「最近播放」列表项里复用，挂着
+                    // requireActivityName="Search" 却照样被藏 ⇒ 列表只剩封面。
+                    rule.requireActivityName?.let { req ->
+                        val act = currentActivity?.get()
+                        if (act != null && !act.javaClass.simpleName.contains(req, ignoreCase = true)) continue
+                    }
                     // 类名排除门禁（顶栏 MainTopImageView 不能被"我的页赚钱入口"命中）
                     if (rule.excludeClassNames.isNotEmpty()
                         && rule.excludeClassNames.any { name.contains(it) }
