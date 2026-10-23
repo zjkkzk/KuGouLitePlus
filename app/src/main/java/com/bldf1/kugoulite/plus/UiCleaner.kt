@@ -2232,6 +2232,26 @@ object UiCleaner {
     /** 明确的二级页 id（这些页面没有「我的页」那些推广元素） */
     private val SECONDARY_PAGE_IDS = setOf("fav", "recent", "local", "bought", "profile")
 
+    /**
+     * ⭐ R255（2026-10-23，用户要求）：**设置页一律不做净化**。
+     *
+     * 为什么需要：用户实锤「滑动设置列表会闪」。排查发现设置页**没有专属 hook**，
+     * 但通用引擎（addView / setId / onTextSet / scan / 分离还原）对所有 Activity 都生效；
+     * 而页面归属机制挡不住它 ——  里  取设置页的
+     * Fragment 返回 （取不到 resumed Fragment），只能退回 MainPager 推断，
+     * 于是设置页被算成 main/discovery ⇒ 所有规则照常跑。
+     * 同时  字段**42 条规则里一条都没用**，机制形同虚设。
+     *
+     * 做法：直接按**布局根 id** 识别（dump 实测设置页根是 av7[0,0-1220,2712]，
+     * 下挂 aq8 顶栏 + list 列表）。任何视图只要在 av7 里，就不参与净化。
+     * 这是「页面归属」在无法拿到 Fragment 类名时的兜底方案。
+     */
+    private val SETTINGS_ROOT_IDS = listOf("av7")
+
+    /** 视图是否位于设置页（R255） */
+    private fun isInSettingsPage(view: View): Boolean =
+        hasAncestorById(view, SETTINGS_ROOT_IDS)
+
     private val MINE_PAGE_RULE_KEYS = setOf(
         Settings.KEY_UI_MINE_EARN_TAB,
         Settings.KEY_UI_MINE_BADGE,
@@ -4560,6 +4580,8 @@ object UiCleaner {
     private fun matchIdRule(
         view: View, rule: Rule, skipPageGate: Boolean = false, fromMount: Boolean = false,
     ): Boolean {
+        // R255：设置页一律不净化（见 SETTINGS_ROOT_IDS）
+        if (isInSettingsPage(view)) return false
         val rn = resourceName(view) ?: return false
         if (rn !in rule.idNames) return false
         // ⭐ R239（2026-10-23）：Activity 名门禁 —— setId/挂载路径此前**漏检**。
