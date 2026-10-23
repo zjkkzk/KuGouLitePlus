@@ -787,6 +787,47 @@ object UiCleaner {
     // 三套实现共用同一位置(1062-1175,126-239)，按歌曲收藏状态切换 ⇒ 必须全部覆盖。
     private val BOOKMARK_IDS = setOf("dt7", "elt", "cdy", "dt_", "dta")
 
+    /**
+     * ⭐ R228（2026-10-23）：书签 id 是否真的在播放页。
+     * 血泪： 里的 cdy/dt_/dta 是短 id，被**「播放器样式」设置页复用**
+     * ⇒ 规则在那里连藏 12 个 KGUIFrameLayout（两个模式的预览图全没了，用户实锤误伤）。
+     * 门禁：当前 Activity 必须是播放页（MediaActivity/PlayerActivity）。
+     * 取不到 Activity 时返回 false（宁可不藏、只可能闪一下，绝不误伤别的页面）。
+     */
+    private fun isPlayPageActive(): Boolean {
+        return try {
+            val a = currentActivity?.get() ?: return false
+            val n = a.javaClass.name
+            n.contains("MediaActivity") || n.contains("PlayerActivity")
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    /**
+     * ⭐ R229：书签的**位置门禁**（比 Activity 门禁精确）。
+     *
+     * 血泪：Activity 门禁挡不住 ——「播放器样式」设置页**也在 MediaActivity 里**，
+     * 而它复用了 cdy/dt_/dta 这些短 id 做模式预览图 ⇒ 整页预览图被藏光。
+     *
+     * 播放页书签的几何是固定的：1062-1175 x 126-239（1220x2712 屏）
+     * ⇒ x > 87% 屏宽、y 在 4%~12% 屏高。
+     * 未布局（0x0）时返回 false：宁可不藏（书签可能闪一帧），也绝不误伤别的页面。
+     */
+    private fun isBookmarkPosition(v: View): Boolean {
+        return try {
+            if (v.width <= 0 || v.height <= 0) return false
+            val loc = IntArray(2)
+            v.getLocationOnScreen(loc)
+            val dm = v.resources.displayMetrics
+            val y = loc[1]
+            loc[0] > dm.widthPixels * 0.8f &&
+                y > dm.heightPixels * 0.03f && y < dm.heightPixels * 0.14f
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
     private val idRuleMap: Map<String, List<Rule>> = buildMap {
         for (rule in RULES) {
             for (id in rule.idNames) {
@@ -1472,7 +1513,8 @@ object UiCleaner {
         // ⭐ R139：播放页书签容器 dt7 用 INVISIBLE 隐藏 —— 占位保留，标题栏两侧保持对称，
         // 标题自然居中（用 GONE 会少一格，标题右移；用 translationX 补偿会压制切歌动画）。
         if (rn != null && rn in BOOKMARK_IDS &&
-            Settings.isFeature(view.context, Settings.KEY_UI_PLAY_BOOKMARK)
+            Settings.isFeature(view.context, Settings.KEY_UI_PLAY_BOOKMARK) &&
+            isPlayPageActive() && isBookmarkPosition(view)
         ) {
             if (view.visibility != View.INVISIBLE) view.visibility = View.INVISIBLE
             // 切歌时宿主会重建 dt7（新实例），scan 遍历到之前会闪 1~2 帧 ⇒ 挂 preDraw，
