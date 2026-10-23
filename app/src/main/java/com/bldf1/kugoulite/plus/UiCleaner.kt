@@ -381,6 +381,15 @@ object UiCleaner {
         // c69(信息中心)/f5m(设置)。5.3.0 的 dg0 保留以兼容旧版。
         // 注意 5.3.1 的页面也会同时命中 dg3/c69/f5m 这些新 id，但本规则只列 dg0/f5l，
         // 不会误伤搜索/信息中心/设置图标。
+        // ⭐ R234：「我的」页顶栏「免」图标 = dg3(794-920)，父 = api(788-1220 图标区)。
+        // 之前错认成 c69（实为搜索图标 f5l 的位置）⇒ 免图标一直没藏。
+        // 同一个 dg3 在发现页是父 dg4（已由 R209 单独处理），用 parentIdNames 区分。
+        Rule(Settings.KEY_UI_FREE_LISTEN_ICON, "我的页免图标",
+            listOf(), listOf(), idNames = listOf("dg3"),
+            // ⚠️ 不能连父：dg3 的父就是 api（整个右侧图标区三兄弟的父）
+            // ⇒ hideParentLevels=1 会把搜索/设置图标一起藏掉（实测三图标全消失）。
+            // dg3 本身是 126x126 的 ImageView（含圆形底），只藏它自己即可。
+            parentIdNames = listOf("api")),
         Rule(Settings.KEY_UI_FREE_LISTEN_ICON, "免费听图标",
             // R205: 去掉 maxYRatio=0.12 —— 它靠 getLocationOnScreen，setId 阶段坐标为 0
             // ⇒ 门禁失败 ⇒ 等 scan ⇒ 「免」图标复活（R203 加了 f5l 但被旧门禁挡住）。
@@ -467,6 +476,17 @@ object UiCleaner {
         // ⇒ 该规则整体爬升，而 bsd 的父是整张头像卡 ⇒ 整页内容被清空。
         Rule(Settings.KEY_UI_MINE_FREE_BAR, "我的页免费听条",
             listOf(), listOf(), idNames = listOf("bsd")),
+        // ⭐ R234：「我的」页顶栏「赚钱」tab = dkc(216-318)，父 = hta(顶栏 tab 容器)。
+        // 同一个 dkc 在发现页是「乐库」（父 fe7）⇒ 用 parentIdNames 精确区分，
+        // 既能藏掉「赚钱」，又不会重演 R204 那次把「乐库」藏掉的事故。
+        // ⚠️ dkc 的直接父是**匿名 LinearLayout**（hta 是爷爷），parentIdNames 匹配不上
+        // ⇒ 改用 ancestorIdNames。发现页的 dkc 祖先链里没有 hta（是 fe7），能精确区分。
+        // ⚠️ ancestorIdNames=[hta] 也不行：**发现页的 dkc 祖先链里同样有 hta**
+        // ⇒ 又把「乐库」藏了（实测顶栏只剩「发现」）。
+        // 改用 requireMinePage 页面门禁（同 MINE_PAGE_RULE_KEYS 里的其它我的页规则）。
+        Rule(Settings.KEY_UI_MINE_EARN_TAB, "我的页赚钱tab",
+            listOf(), listOf(), idNames = listOf("dkc"),
+            requireMinePage = true),
         // R215 已禁用：dkc 实为发现页顶栏「乐库」tab（MainTopImageView 三个 tab
         // 跨页共用一组 id：dk8=发现|我的、dkd=免费听|赚钱、dkc=乐库）。
         // R204 的 maxYRatio=0.15 没命中「我的」页底部 tab（y=0.93），
@@ -2181,6 +2201,7 @@ object UiCleaner {
     private val SECONDARY_PAGE_IDS = setOf("fav", "recent", "local", "bought", "profile")
 
     private val MINE_PAGE_RULE_KEYS = setOf(
+        Settings.KEY_UI_MINE_EARN_TAB,
         Settings.KEY_UI_MINE_BADGE,
         Settings.KEY_UI_MINE_EARN,
         Settings.KEY_UI_MINE_MEDAL,
