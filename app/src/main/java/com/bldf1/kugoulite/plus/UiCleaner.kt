@@ -575,6 +575,10 @@ object UiCleaner {
         Rule(Settings.KEY_UI_SEARCH_VIP_BAR, "搜索结果VIP条",
             listOf(), listOf(), idNames = listOf("ezd", "ezg"),
             requireActivityName = "Search"),
+        // ❌ R241 已回滚：想用 minWRatio=0.95 区分「推广条 vs 列表项」失败 ——
+        // 歌曲列表项的**外层容器也是全宽 1220**（文字区 195-905 只是它的子节点），
+        // 宽度门禁把整个列表都命中了 ⇒ 列表文字再次全没。
+        // 结论：ezg 在列表页无法用几何特征区分，放弃该页的 VIP 条清理。
         // ⚠️ R236：c6a 在 5.3.1 也是**头像**（106,344-271,492）⇒ 误伤。
         // 真正的「2天后过期」胶囊是 c6c（304,412-418,492，desc="会员中心"）。
         Rule(Settings.KEY_UI_VIP_EXPIRE, "VIP过期胶囊",
