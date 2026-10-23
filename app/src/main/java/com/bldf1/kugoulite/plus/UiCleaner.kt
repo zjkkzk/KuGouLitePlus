@@ -3760,7 +3760,14 @@ object UiCleaner {
             // 颜色不一样"）。⚠️ 不能 GONE 底板——它是约束子，GONE 会改变
             // HomeCardConstraintLayout 求解导致白卡缩到 836 宽（Round 18 缺口
             // 真相）。做法=保持几何不变，只抹掉底板背景（幂等，每次复核都跑）
-            if (rule.name == "我的页会员角标" && resourceName(view) == "c6u") {
+            // ⭐ R261（5.3.1 适配）：c6u → **c6u || c6x**。
+            // 5.3.0 的 V 角标是 c6u，5.3.1 改成 **c6x**(1099-1166, 314-415)，
+            // 而这里写死 c6u ⇒ neutralizeBadgePlate（底板对齐 + 抹背景）**从未被调用**
+            // ⇒ 底板 iva[836,297-1166,534] 比白卡 isv[54,297-1166,522] 高 12px
+            // ⇒ 白卡右上露出「补角」（用户实锤「白卡右上角补全」）。
+            if (rule.name == "我的页会员角标" &&
+                (resourceName(view) == "c6u" || resourceName(view) == "c6x")
+            ) {
                 neutralizeBadgePlate(view)
             }
             // ⭐ 免费听图标（2026-10-15）：dg1 alpha=0 必须放在 **visibility 早退之前**。
@@ -4071,14 +4078,26 @@ object UiCleaner {
      */
     private fun neutralizeBadgePlate(sticker: View) {
         try {
-            // 底板 = 贴纸父视图 iv5（贴纸可能复用，加 ID / 近亲兜底）
-            val plate = (sticker.parent as? View)?.takeIf { resourceName(it) == "iv5" }
+            // 底板 = 贴纸父视图。⭐ R260（5.3.1 适配）：iv5 → **iva**
+            // dump 实测（我的页白卡区）：
+            //   isv [54,297-1166,522]   ← 白卡（R187 时代的 iss 改名成 isv）
+            //   iva [836,297-1166,534]  ← 角标底板，比白卡**高 12px** ⇒ 右上露出补角
+            // 5.3.1 里 iv5/iss 都不存在 ⇒ R187 的对齐逻辑从未执行（用户实锤「白卡右上角补全」）。
+            val plate = (sticker.parent as? View)?.takeIf { resourceName(it) == "iva" || resourceName(it) == "iv5" }
+                ?: findSiblingId(sticker, "iva", 3)
                 ?: findSiblingId(sticker, "iv5", 3)
                 ?: return
             // ⭐ R187：iss 是 iv5 的**祖先**不是兄弟，findSiblingId 永远返回 null
             // ⇒ 「底板下沿比白卡多 12px」的对齐逻辑从未执行 ⇒ 白卡右上露出补角
             //（用户实锤「我的页 白卡补角」）。
-            val card = findAncestorId(plate, "iss", 6)
+            // ⭐ R260：iss → isv（5.3.1 的白卡）
+            val card = findAncestorId(plate, "isv", 6) ?: findAncestorId(plate, "iss", 6)
+            // ⭐ R260b：兜底 —— 让白卡裁掉溢出部分。
+            // isv[54,297-1166,522] 是圆角白卡，iva[836,297-1166,534] 是角标底板，
+            // 底板比白卡高 12px ⇒ 右上角露出一块补角。高度对齐逻辑依赖
+            // plate 能被识别成栈纸父视图，5.3.1 层级变了可能匹配不到；
+            // 这里再加一道与层级无关的兜底：白卡开启 clipChildren，超出部分直接裁掉。
+            (card as? android.view.ViewGroup)?.let { if (!it.clipChildren) it.clipChildren = true }
             // 底板下沿比白卡多 12px → 对齐，否则露一条 4dp 白边
             if (card != null && card.height > 0 && plate.height > 0) {
                 val want = (card.top + card.height - plate.top).coerceAtLeast(1)
