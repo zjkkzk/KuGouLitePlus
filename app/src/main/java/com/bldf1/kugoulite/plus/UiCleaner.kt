@@ -1436,27 +1436,24 @@ object UiCleaner {
                     barPageLogedFor = curPageId + onMainPage.toString()
                     ModuleLog.log("R271 底栏页面判定 curPageId=$curPageId onMain=$onMainPage")
                 }
-                // ⭐ R279：改用**独立 overlay 方案**（FloatingTabBarV2）。
-                // 旧 FloatingTabBar 会在宿主底栏上直接改 LayoutParams/visibility/background，
-                // 而 5.3.1 的宿主复用了同一个 View 实例给「迷你播放条」⇒ 改造残留会改坏它。
-                // V2 只读宿主几何、只改 alpha（幂等），自己叠一层胶囊，零污染。
-                // ⭐ R282：带诊断重新启用。这次 addView 后会打日志验证
-                // parent/attached/size/globalVisible，先确认视图真的进了绘制树。
-                if (!onMainPage) {
-                    if (FloatingTabBarV2.isApplied()) {
-                        try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
-                    }
-                } else if (now - lastBarTickAt > 500L) {
-                    lastBarTickAt = now
-                    // ⚠️ R283：不要再静默吞异常 —— V2 的诊断日志一条都没出来，
-                    // 正是因为这个 catch 把所有异常都吃掉了。显式打出来。
-                    try {
-                        FloatingTabBarV2.ensure(activity, decor)
-                    } catch (t: Throwable) {
-                        ModuleLog.log("V2诊断异常: ${t.javaClass.simpleName}: ${t.message}")
-                    }
+                // ⭐⭐ R299：**回到旧版 FloatingTabBar**（重写 V2 的路线已废弃）。
+                // 旧版自带：二级页判断（overlayCovering/branchKind/SEARCH_CONTAINER）、
+                // 底色清理、胶囊尺寸(62dp)、垂直居中、液态玻璃挂载、自愈 watch。
+                // 本次只把 id 换成 5.3.1 dump 实测值（见 FloatingTabBar 顶部注释）。
+                if (FloatingTabBarV2.isApplied()) {
+                    try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
                 }
-            } else if (FloatingTabBarV2.isApplied()) {
+                // ⛔ R300：**再次停用**。R299 把 id 全对上了，但 FILL_HOST_ID 改成 fv5 后
+                // 玻璃以 MATCH_PARENT 铺满整个底栏（270px 全高），比胶囊(186px)高一截，
+                // 底栏变成一大片白色 + 内容透出，比原生更差。
+                // 根因：填充层尺寸必须**跟胶囊几何一致**（186px 圆角矩形），
+                // 不能简单地 MATCH_PARENT 到 fv5。这需要改 applyTo 里 addView 的
+                // LayoutParams，属于结构性改动，不在收尾阶段动。
+                if (FloatingTabBar.isApplied()) {
+                    try { FloatingTabBar.restore() } catch (_: Throwable) {}
+                }
+            } else if (FloatingTabBar.isApplied() || FloatingTabBarV2.isApplied()) {
+                try { FloatingTabBar.restore() } catch (_: Throwable) {}
                 try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
             }
             val t0 = System.nanoTime()
