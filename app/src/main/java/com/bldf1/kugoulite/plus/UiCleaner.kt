@@ -2406,8 +2406,20 @@ object UiCleaner {
             if (collapsedEmptyItems.isNotEmpty()) {
                 val itr = collapsedEmptyItems.iterator()
                 while (itr.hasNext()) {
-                    val (v, _) = itr.next()
+                    val (v, origH) = itr.next()
                     if (!v.isAttachedToWindow) { itr.remove(); continue }
+                    // ⭐⭐ R304 安全阀（必须）：内容回填 ⇒ 立即还原并停止钉住。
+                    // 实锤（60fps 录屏帧 155/160/190）：宿主会「先清空、再重填」
+                    // VIP 专属推荐 的内容，中间空约 30 帧。我们在这段判定为空并收缩，
+                    // 如果内容回来后还在钉 1px，就会**把正常内容裁掉**。
+                    if (hasVisibleContent(v, 0)) {
+                        try {
+                            v.layoutParams?.let { it.height = origH; v.layoutParams = it }
+                        } catch (_: Throwable) {}
+                        itr.remove()
+                        ModuleLog.log("UI净化[空区块] 内容已回填，还原高度")
+                        continue
+                    }
                     val lp = v.layoutParams
                     if (lp != null && lp.height != EMPTY_ITEM_COLLAPSED_PX) {
                         lp.height = EMPTY_ITEM_COLLAPSED_PX
