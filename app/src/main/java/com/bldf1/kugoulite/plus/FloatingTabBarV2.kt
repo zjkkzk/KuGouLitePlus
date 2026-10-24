@@ -63,14 +63,28 @@ internal object FloatingTabBarV2 {
     // 改为 168px（156 + 上下各 6px 留白），底边贴 2613：
     //   bottomMargin = 2712 - 2613 = 99px = 33dp
     //   胶囊 y 2445~2613，中心 2529 ≈ 播放钮中心 2535 ✓
-    /** 胶囊高度（dp）→ 168px */
-    private const val HEIGHT_DP = 56f
+    // ⭐ R290：**回到旧版（5.3.0）的胶囊尺寸**。用户要对比，对比结果：
+    //              旧版            新版(我上一版)     差
+    //   左右边距    16dp = 48px     16dp = 48px       同
+    //   高度        62dp = 186px    56dp = 168px      矮 18px  ← 问题
+    //   圆角        高度一半(93px)   28dp = 84px       略小
+    //   垂直定位    top 6dp(从栏顶)  bottom 33dp(从栏底)
+    // 旧版 186px 包住 156px 的播放钮，**上下各留 15px**；
+    // 我上一版只有 168px，上下各 6px ⇒ 太紧，视觉上图标没居中。
+    // 现在统一回 62dp，并按旧版的 top 基准换算 bottomMargin：
+    //   fv5 高 270px，胶囊 186px，顶部留 18px(6dp) ⇒ 底部留 270-186-18 = 66px = 22dp
+    /** 胶囊高度（dp）→ 186px，与旧版一致 */
+    private const val HEIGHT_DP = 62f
 
-    /** 距底栏底部（dp）→ 99px */
-    private const val BOTTOM_DP = 33f
+    // 垂直基准换成"胶囊中心 = 播放钮中心"（比旧版的 top 基准更准）：
+    //   播放钮 fke y 2457~2613 ⇒ 中心 2535
+    //   胶囊 186px ⇒ y 2442~2628（中心 2535）
+    //   bottomMargin = 2712 - 2628 = 84px = 28dp
+    /** 距底栏底部（dp）→ 84px，让胶囊中心与播放钮中心对齐 */
+    private const val BOTTOM_DP = 28f
 
-    /** 圆角（dp）→ 28dp = 84px = 高度一半，完整药丸形 */
-    private const val RADIUS_DP = 28f
+    /** 圆角（dp）→ 31dp = 93px = 高度一半，完整药丸形（与旧版一致） */
+    private const val RADIUS_DP = 31f
 
     private var overlay: View? = null
     private var hostRef: WeakReference<View>? = null
