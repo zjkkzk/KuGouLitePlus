@@ -1427,7 +1427,11 @@ object UiCleaner {
                 // 播放页/搜索页/设置页/收藏/最近 等二级页面是 frag:xxx / search / settings。
                 // 之前完全没有页面判断 ⇒ 任何页面（包括播放页、模块面板所在页）都会
                 // 尝试改造底栏，既浪费性能也可能改到不该改的布局。
-                val onMainPage = curPageId == "main" || curPageId == "discovery"
+                // ⭐ R286： 在二级页（最近播放等）会误判成 main
+                // （实测：最近播放页 curPageId=main ⇒ overlay 没被移除，胶囊残留）。
+                // 改用**结构信号**：底栏的 at2("发现") 和 at5("我的") 两个 tab 文字
+                // 只在主页面存在，二级页的底栏被迷你播放条替代 ⇒ 更可靠。
+                val onMainPage = barTabsPresent(decor)
                 if (barPageLogedFor != curPageId) {
                     barPageLogedFor = curPageId
                     ModuleLog.log("R271 底栏页面判定 curPageId=$curPageId onMain=$onMainPage")
@@ -2730,6 +2734,34 @@ object UiCleaner {
 
     @Volatile
     private var v2DiagDone = false
+
+    /**
+     * R286：判断当前是否在主页面（发现/我的）。
+     *
+     * 为什么不用 curPageId：实测最近播放页的 curPageId 仍是 "main"（Fragment 判断
+     * 在二级页不可靠），导致底栏 overlay 没被移除、胶囊残留在二级页。
+     *
+     * 改用结构信号：宿主底栏的 at2("发现") + at5("我的") 两个 tab 文字
+     * **只在主页面存在**。二级页的底栏位置被迷你播放条替代，没有这两个 tab。
+     */
+    private fun barTabsPresent(decor: View): Boolean {
+        return try {
+            val pkg = decor.context.packageName
+            var found = 0
+            for (id in arrayOf("at2", "at5")) {
+                val rid = decor.resources.getIdentifier(id, "id", pkg)
+                if (rid == 0) continue
+                val v = decor.findViewById<View>(rid) ?: continue
+                // ⚠️ 关键：findViewById 能拿到**被隐藏**的 View，
+                // 所以必须同时检查 visibility 和 isShown。
+                // 二级页（最近播放）里这两个 tab 节点仍然存在，只是不可见。
+                if (v.visibility == View.VISIBLE && v.isShown) found++
+            }
+            found == 2
+        } catch (_: Throwable) {
+            false
+        }
+    }
 
     /** 计算页面 id：Activity 类名 → 栈顶 Fragment → 主 pager 页 */
     private fun computePageId(a: Activity): String = try {
