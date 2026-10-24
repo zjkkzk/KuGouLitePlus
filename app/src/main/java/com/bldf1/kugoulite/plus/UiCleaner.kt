@@ -3999,6 +3999,11 @@ object UiCleaner {
             if (rule.requireMinePage) gatedViews[target] = true
             ModuleLog.log(
                 "UI净化[${rule.name}] 隐藏: ${target.javaClass.simpleName}" +
+                    // ⭐ R298：把目标 resourceName 也打出来 —— 靠"类名"无法定位到具体
+                    // 区块（ViewGroup/FrameLayout 一堆同名）。用户报的底部空白实测是
+                    // eld(525px) 区块内部被藏空、容器仍占位，需要知道是谁藏的。
+                    " id=${resourceName(target)}" +
+                    " sz=${target.width}x${target.height}" +
                     (if (rule.collapseHeight) " GONE+height=0" else "") +
                     " v=${Integer.toHexString(target.hashCode())}" +
                     " 已绘制=${if (wasDrawn(target)) "是" else "否"}" +
