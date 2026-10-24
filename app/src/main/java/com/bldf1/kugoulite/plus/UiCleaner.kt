@@ -4515,15 +4515,21 @@ object UiCleaner {
             return
         }
         val rv = findOnScreenView(decor, "b7g") as? ViewGroup ?: return
-        if (rv.childCount != emptyBlockSealedCount) emptyBlockSealedCount = -1
         collapseEmptyFeedBlockFast(rv, decor.context)
     }
 
     /** b7g 引用缓存：preDraw 每帧都要找它，不能每帧全树遍历 */
     private var b7gRef: java.lang.ref.WeakReference<ViewGroup>? = null
 
-    /** 上次处理完时的 item 数量（相同 ⇒ 已收敛，跳过） */
-    @Volatile private var emptyBlockSealedCount = -1
+    /**
+     * 上次检查时各 item 的高度签名（childCount + 每个 item 的 height）。
+     *
+     * ⭐ R305：原来只比较 childCount ⇒ **内容从有变成空时 item 数量不变**，
+     * 直接跳过检查 ⇒ 空白漏检（实测 3 轮里有 1 轮纯色 99% 却不收缩）。
+     * 改成高度签名：宿主清空内容会让 item 高度变化（525→其他），签名一变就重查。
+     * 成本 = 比较 4~10 个 int，可忽略；且我们收缩后签名自然更新，不会循环。
+     */
+    @Volatile private var emptyBlockLastSig: IntArray = IntArray(0)
 
     /**
      * ⭐ R302：绘制前版本的「空区块收缩」——**每帧跑，只遍历 b7g 的直接子项**。
@@ -4541,7 +4547,12 @@ object UiCleaner {
      */
     private fun collapseEmptyFeedBlockFast(rv: ViewGroup, ctx: android.content.Context) {
         if (!Settings.isFeature(ctx, Settings.KEY_UI_EMPTY_BLOCK)) return
-        if (rv.childCount == emptyBlockSealedCount) return
+        // 高度签名：childCount + 各 item 高度。相同 ⇒ 布局没变，跳过（省 CPU）
+        val sig = IntArray(rv.childCount + 1)
+        sig[0] = rv.childCount
+        for (i in 0 until rv.childCount) sig[i + 1] = rv.getChildAt(i).height
+        if (sig.contentEquals(emptyBlockLastSig)) return
+        emptyBlockLastSig = sig
         val minH = (ctx.resources.displayMetrics.heightPixels * 0.10f).toInt()
         var stillSettling = false
         for (i in 0 until rv.childCount) {
@@ -4562,8 +4573,8 @@ object UiCleaner {
                 )
             } catch (_: Throwable) {}
         }
-        // 还有 item 没布局完 ⇒ 下一帧再看；否则记为已收敛
-        if (!stillSettling) emptyBlockSealedCount = rv.childCount
+        // 收缩后高度变了 ⇒ 下一帧签名会不同、自然重算一次（不循环：我们设的值是稳定的）
+        if (stillSettling) emptyBlockLastSig = IntArray(0)
     }
 
     /** 开关关闭时把空区块高度还回去 */
