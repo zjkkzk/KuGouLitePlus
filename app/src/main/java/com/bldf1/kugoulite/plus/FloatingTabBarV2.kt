@@ -82,8 +82,17 @@ internal object FloatingTabBarV2 {
         // ---- 1) 构建胶囊 overlay（先挂，成功后才隐藏宿主）----
         // 顺序很关键：如果先 alpha=0 再 addView 失败，就会出现「底栏没了、胶囊也没挂上」
         // 的黑洞状态（本轮实测踩到过）。
-        val root: ViewGroup = (decor as? ViewGroup)
-            ?: (decor.parent as? ViewGroup)
+        // ⭐⭐ 关键（实测 decor 层级）：
+        //   DecorView
+        //     └─ LinearLayout
+        //          ├─ ViewStub#action_mode_bar_stub
+        //          └─ FrameLayout#content   ← 业务内容在这里
+        // 把 overlay 加到 **DecorView** 上会被忽略（它有自己的布局逻辑，只认那个
+        // LinearLayout），这正是"日志说挂载成功、画面上看不见"的原因。
+        // 必须加到 android.R.id.content 里，并且 bringToFront 到最上层。
+        val content = activity.findViewById<ViewGroup>(android.R.id.content)
+        val root: ViewGroup = content
+            ?: (decor as? ViewGroup)
             ?: (decor.rootView as? ViewGroup)
             ?: return false
         val card = FrameLayout(activity)
@@ -147,6 +156,30 @@ internal object FloatingTabBarV2 {
         }
         hostRef = null
         appliedActivity = null
+    }
+
+    /** ⭐ 诊断：打印 decor 层级，搞清楚 overlay 该加在哪一层（只跑一次） */
+    fun diagHierarchy(decor: View) {
+        try {
+            val sb = StringBuilder()
+            fun walk(v: View, d: Int) {
+                if (d > 5) return
+                val rid = try {
+                    if (v.id == View.NO_ID) "-" else v.resources.getResourceEntryName(v.id)
+                } catch (_: Throwable) { "?" }
+                sb.append('\n').append("  ".repeat(d))
+                    .append(v.javaClass.simpleName).append("#").append(rid)
+                    .append(" ").append(v.width).append("x").append(v.height)
+                    .append(" vis=").append(v.visibility)
+                    .append(" alpha=").append(v.alpha)
+                if (v is ViewGroup) {
+                    for (i in 0 until v.childCount) walk(v.getChildAt(i), d + 1)
+                }
+            }
+            walk(decor, 0)
+            ModuleLog.log("decor层级:" + sb.toString())
+        } catch (_: Throwable) {
+        }
     }
 
     private fun findHostBar(decor: View): View? {
