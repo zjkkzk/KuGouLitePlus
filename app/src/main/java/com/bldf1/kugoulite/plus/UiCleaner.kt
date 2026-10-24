@@ -2275,20 +2275,38 @@ object UiCleaner {
     private val SETTINGS_ROOT_IDS = listOf("av7")
 
     /** 视图是否位于设置页（R255） */
+    // ⭐ R268（性能修复）：R266 引入的全树深搜在热路径上代价过大。
+    // 实测：播放页掉帧 14.85%（30/202 帧），而发现页只有 0.45%。
+    // 原因：播放页歌词每帧 setText ⇒ onTextSet ⇒ isInSettingsPage ⇒ 非设置页视图
+    // 走不到快速路径 ⇒ 每次都从 decorView 深搜整棵树（几百个节点 × 每帧）。
+    // 修：对「当前 Activity 是否是设置页」做 50ms 缓存。
+    // 页面切换不可能在 50ms 内完成两次，所以判定滞后最多 50ms 无感。
+    @Volatile private var settingsCheckedAt = 0L
+    @Volatile private var settingsCheckedFor: java.lang.ref.WeakReference<android.app.Activity>? = null
+    @Volatile private var settingsValue = false
+
     private fun isInSettingsPage(view: View): Boolean {
-        // 1) 常规：从视图往上爬（view 已挂到树上时可用）
+        // 1) 快速路径：从视图往上爬（O(深度)，很便宜）
         if (hasAncestorById(view, SETTINGS_ROOT_IDS)) return true
-        // 2) 兜底（R266）：ListView 滑动时新建的 item 可能还没挂到 av7 下
-        //    （parent 链中断）⇒ 上面的爬升判定失败 ⇒ 泄漏到净化逻辑。
-        //    改用当前 Activity 的 decorView 判断整棵树——它始终是完整的。
-        return try {
-            val d = currentActivity?.get()?.window?.decorView ?: return false
-            resourceName(d) in SETTINGS_ROOT_IDS ||
+        // 2) 缓存：同一 Activity + 50ms 内直接复用上次结果
+        val a = currentActivity?.get() ?: return false
+        val now = android.os.SystemClock.uptimeMillis()
+        if (settingsCheckedFor?.get() === a && now - settingsCheckedAt < 50L) {
+            return settingsValue
+        }
+        // 3) 兜底：decorView 整棵树深搜（每 50ms 最多执行一次）
+        val v = try {
+            val d = a.window?.decorView
+            d != null && (resourceName(d) in SETTINGS_ROOT_IDS ||
                 hasAncestorById(d, SETTINGS_ROOT_IDS) ||
-                (d as? ViewGroup)?.let { findDescendantId(it, SETTINGS_ROOT_IDS) } == true
+                (d as? ViewGroup)?.let { findDescendantId(it, SETTINGS_ROOT_IDS) } == true)
         } catch (_: Throwable) {
             false
         }
+        settingsValue = v
+        settingsCheckedAt = now
+        settingsCheckedFor = java.lang.ref.WeakReference(a)
+        return v
     }
 
     /** 在给定子树里找一个 id 属于 idNames 的节点（深度优先，最多 40 层） */

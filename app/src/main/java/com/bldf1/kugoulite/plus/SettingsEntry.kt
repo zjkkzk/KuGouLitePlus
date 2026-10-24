@@ -388,6 +388,17 @@ object SettingsEntry {
             return
         }
         panelHost = WeakReference(activity)
+        // ⭐ R269（用户实锤「打开面板时没有模糊，滚动一下模糊才出现」）：
+        // 玻璃靠 ViewTreeObserver.OnPreDrawListener 采样背景，而 onPreDraw 只在**有绘制请求**时触发。
+        // 面板刚挂上时如果画面静止（无动画、无内容变化），就不会有 preDraw
+        // ⇒ 不采样 ⇒ 没有模糊；一旦滚动产生重绘，采样启动，模糊才出现。
+        // 修法：挂载后主动触发几次 invalidate，把这个第一次绘制请求制造出来。
+        // 300ms 内分三次覆盖首帧 + 采样间隔（33ms）后的补采。
+        runCatching {
+            overlay.post { overlay.invalidate() }
+            overlay.postDelayed({ overlay.invalidate() }, 50)
+            overlay.postDelayed({ overlay.invalidate() }, 200)
+        }
         ModuleLog.log(
             "设置面板已打开(底部弹层) 玻璃=${if (panel?.get()?.glassActive == true) "ok" else "off(实色底板)"}"
         )
