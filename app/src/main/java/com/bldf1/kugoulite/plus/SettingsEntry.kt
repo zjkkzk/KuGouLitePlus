@@ -596,6 +596,7 @@ object SettingsEntry {
                     row(Settings.KEY_UI_DISCOVER_BANNER_SLOT, "去发现页 Banner 槽位", "隐藏发现页 feed 顶部的广告位槽"),
                     row(Settings.KEY_UI_TAOBAO_BAR, "去淘宝推广条", "隐藏「上淘宝更优惠」倒计时推广条"),
                     row(Settings.KEY_UI_TMALL_CARD, "去天猫活动卡", "隐藏「天猫双11」等活动大卡"),
+                    row(Settings.KEY_UI_EMPTY_BLOCK, "去空白区块", "收起信息流里没有内容却仍占高度的大块空白"),
                     row(Settings.KEY_UI_INVITE, "去邀请提示", "隐藏「邀请好友得会员」提示"),
                     row(Settings.KEY_UI_LAB, "去概念实验室", "隐藏「概念实验室」整块区块"),
                     row(Settings.KEY_UI_LOGIN_GUIDE, "去登录引导", "隐藏未登录时的登录引导条"),

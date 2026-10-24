@@ -1436,28 +1436,33 @@ object UiCleaner {
                     barPageLogedFor = curPageId + onMainPage.toString()
                     ModuleLog.log("R271 底栏页面判定 curPageId=$curPageId onMain=$onMainPage")
                 }
-                // ⭐⭐ R299：**回到旧版 FloatingTabBar**（重写 V2 的路线已废弃）。
-                // 旧版自带：二级页判断（overlayCovering/branchKind/SEARCH_CONTAINER）、
-                // 底色清理、胶囊尺寸(62dp)、垂直居中、液态玻璃挂载、自愈 watch。
-                // 本次只把 id 换成 5.3.1 dump 实测值（见 FloatingTabBar 顶部注释）。
-                if (FloatingTabBarV2.isApplied()) {
-                    try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
+                // ⭐ R279：改用**独立 overlay 方案**（FloatingTabBarV2）。
+                // 旧 FloatingTabBar 会在宿主底栏上直接改 LayoutParams/visibility/background，
+                // 而 5.3.1 的宿主复用了同一个 View 实例给「迷你播放条」⇒ 改造残留会改坏它。
+                // V2 只读宿主几何、只改 alpha（幂等），自己叠一层胶囊，零污染。
+                // ⭐ R282：带诊断重新启用。这次 addView 后会打日志验证
+                // parent/attached/size/globalVisible，先确认视图真的进了绘制树。
+                if (!onMainPage) {
+                    if (FloatingTabBarV2.isApplied()) {
+                        try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
+                    }
+                } else if (now - lastBarTickAt > 500L) {
+                    lastBarTickAt = now
+                    // ⚠️ R283：不要再静默吞异常 —— V2 的诊断日志一条都没出来，
+                    // 正是因为这个 catch 把所有异常都吃掉了。显式打出来。
+                    try {
+                        FloatingTabBarV2.ensure(activity, decor)
+                    } catch (t: Throwable) {
+                        ModuleLog.log("V2诊断异常: ${t.javaClass.simpleName}: ${t.message}")
+                    }
                 }
-                // ⛔ R300：**再次停用**。R299 把 id 全对上了，但 FILL_HOST_ID 改成 fv5 后
-                // 玻璃以 MATCH_PARENT 铺满整个底栏（270px 全高），比胶囊(186px)高一截，
-                // 底栏变成一大片白色 + 内容透出，比原生更差。
-                // 根因：填充层尺寸必须**跟胶囊几何一致**（186px 圆角矩形），
-                // 不能简单地 MATCH_PARENT 到 fv5。这需要改 applyTo 里 addView 的
-                // LayoutParams，属于结构性改动，不在收尾阶段动。
-                if (FloatingTabBar.isApplied()) {
-                    try { FloatingTabBar.restore() } catch (_: Throwable) {}
-                }
-            } else if (FloatingTabBar.isApplied() || FloatingTabBarV2.isApplied()) {
-                try { FloatingTabBar.restore() } catch (_: Throwable) {}
+            } else if (FloatingTabBarV2.isApplied()) {
                 try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
             }
             val t0 = System.nanoTime()
             scan(decor, activity, hidden, 0)
+            // R300：发现页空区块（宿主不下发内容却占高度）⇒ 收缩，避免一大片空白
+            try { collapseEmptyFeedBlock(decor) } catch (_: Throwable) {}
             PerfProbe.add(PerfProbe.SCAN, System.nanoTime() - t0)
             recordScanCost(System.nanoTime() - t0, now)
             // 开屏广告只在启动期出现 —— 非启动窗口不再为此做全树遍历
@@ -4420,6 +4425,107 @@ object UiCleaner {
         } catch (_: Throwable) {
             false
         }
+    }
+
+    // ===== R300：移除发现页信息流里的「空区块」=====
+    //
+    // 用户实锤：发现页底部有一大片空白。三条独立证据确认**不是模块规则造成的**
+    // （整体回滚仍存在 / dump 显示容器在但内容空 / 隐藏日志从未碰过该节点），
+    // 而是宿主给这个区块**没有下发内容却仍占高度**。
+    //
+    // uiautomator dump 实测（2026-10-25，1220x2712）：
+    //   b7g(RecyclerView) 的 4 个直接子 item：
+    //     [0] y  273~ 951  texts=[根据你的听歌口味推荐, 宝藏音乐故事, 为你推荐]
+    //     [1] y  951~1812  texts=[私人专属好歌, Umbrella, ...]
+    //     [2] y 1812~2337  texts=[]      ← eld，525px，**一个文字都没有**
+    //     [3] y 2377~2712  texts=[潮流尝鲜, 忘了]
+    //   [2] 的子树只有 eld → ew → FrameLayout → e4 四层容器，
+    //   **没有任何 TextView / ImageView** ⇒ 彻底空壳。
+    //
+    // 处置：收缩到 [COLLAPSED_ITEM_HEIGHT_PX]（40px 薄缝）。
+    // ⚠️ 不能用 0：R65 实锤「0 塌缩 ⇒ 列表可滚动度量 ⇒ 宿主 presenter 判定到底
+    //   ⇒ 不再驱动卡片管线 ⇒ 死锁（刷不到底）」。40px 是既有整卡隐藏的同一取值。
+
+    /** 已收缩的空区块 → 原高度（开关关闭时还原） */
+    private val collapsedEmptyItems = ArrayList<Pair<View, Int>>()
+
+    /**
+     * 识别并收缩发现页信息流里的空区块。
+     *
+     * 判据（三条同时成立才算空）：
+     *  ① 是 b7g(RecyclerView) 的直接子 item，且 VISIBLE
+     *  ② 高度 ≥ 屏幕高的 10%（矮的不算大块空白，避免动到紧凑卡片）
+     *  ③ 子树里**没有任何非空 TextView，也没有任何带 drawable 的 ImageView**
+     *     —— 只有容器层 ⇒ 宿主未下发内容
+     *
+     * 为什么只判'无文字/无图片'而不判'无 view'：空区块里常有若干层 ViewGroup
+     * 占位（eld→ew→FrameLayout→e4），但它们没有任何可见内容。
+     */
+    private fun collapseEmptyFeedBlock(decor: View) {
+        if (curPageId != "discovery") return
+        if (!Settings.isFeature(decor.context, Settings.KEY_UI_EMPTY_BLOCK)) {
+            restoreEmptyFeedBlock()
+            return
+        }
+        val rv = findOnScreenView(decor, "b7g") as? ViewGroup ?: return
+        val minH = (decor.resources.displayMetrics.heightPixels * 0.10f).toInt()
+        for (i in 0 until rv.childCount) {
+            val item = rv.getChildAt(i)
+            if (item.visibility != View.VISIBLE) continue
+            if (item.height < minH) continue
+            if (collapsedEmptyItems.any { it.first === item }) continue
+            if (hasVisibleContent(item, 0)) continue
+            val lp = item.layoutParams ?: continue
+            val origH = lp.height
+            collapsedEmptyItems += item to origH
+            try {
+                lp.height = COLLAPSED_ITEM_HEIGHT_PX
+                item.layoutParams = lp
+                ModuleLog.log(
+                    "UI净化[空区块] 收缩: ${item.javaClass.simpleName} id=${resourceName(item)}" +
+                        " ${item.width}x$origH → ${COLLAPSED_ITEM_HEIGHT_PX}px"
+                )
+            } catch (_: Throwable) {}
+        }
+    }
+
+    /** 开关关闭时把空区块高度还回去 */
+    private fun restoreEmptyFeedBlock() {
+        if (collapsedEmptyItems.isEmpty()) return
+        for ((v, h) in collapsedEmptyItems) {
+            try {
+                v.layoutParams?.let { it.height = h; v.layoutParams = it }
+            } catch (_: Throwable) {}
+        }
+        collapsedEmptyItems.clear()
+    }
+
+    /** 子树里是否存在看得见的内容（非空文字 / 有图） */
+    private fun hasVisibleContent(v: View, depth: Int): Boolean {
+        if (depth > 8) return false
+        if (v.visibility != View.VISIBLE) return false
+        when (v) {
+            is TextView -> if (v.text?.isNotBlank() == true) return true
+            is ImageView -> if (v.drawable != null) return true
+        }
+        if (v is ViewGroup) {
+            for (i in 0 until v.childCount) {
+                if (hasVisibleContent(v.getChildAt(i), depth + 1)) return true
+            }
+        }
+        return false
+    }
+
+    /** 按 resourceName 在全树里找一个已布局的 View（只返回有尺寸的） */
+    private fun findOnScreenView(v: View?, idName: String): View? {
+        if (v == null) return null
+        if (v.width > 0 && v.height > 0 && resourceName(v) == idName) return v
+        if (v is ViewGroup) {
+            for (i in 0 until v.childCount) {
+                findOnScreenView(v.getChildAt(i), idName)?.let { return it }
+            }
+        }
+        return null
     }
 
     private fun hideBlockContainer(textView: TextView, rule: Rule): Boolean {

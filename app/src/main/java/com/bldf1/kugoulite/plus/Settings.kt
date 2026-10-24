@@ -31,6 +31,8 @@ object Settings {
     const val KEY_UI_TAOBAO_BAR = "ui_taobao_bar"
     /** 发现页天猫活动大卡（「天猫双11」等档期卡） */
     const val KEY_UI_TMALL_CARD = "ui_tmall_card"
+    /** 发现页信息流里的**空区块**（宿主未下发内容但仍占高度 ⇒ 一片空白） */
+    const val KEY_UI_EMPTY_BLOCK = "ui_empty_block"
     const val KEY_UI_PLAY_AD = "ui_play_ad"
     const val KEY_UI_PLAY_BOOKMARK = "ui_play_bookmark"
     const val KEY_UI_WEEKLY_WELFARE = "ui_weekly_welfare"
