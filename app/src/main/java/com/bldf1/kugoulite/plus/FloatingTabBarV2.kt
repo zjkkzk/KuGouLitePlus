@@ -55,6 +55,7 @@ internal object FloatingTabBarV2 {
 
     private var overlay: View? = null
     private var hostRef: WeakReference<View>? = null
+    private val bgRefs = ArrayList<WeakReference<View>>()
     private var appliedActivity: WeakReference<Activity>? = null
 
     fun isApplied(): Boolean = overlay?.parent != null
@@ -66,11 +67,22 @@ internal object FloatingTabBarV2 {
     fun ensure(activity: Activity, decor: View): Boolean {
         if (isApplied()) {
             // 同一个 Activity 直接复用；换了 Activity 要重建
-            if (appliedActivity?.get() === activity) return true
+            if (appliedActivity?.get() === activity) {
+                ModuleLog.log("V2诊断: 已挂载且同 Activity，跳过")
+                return true
+            }
             remove()
         }
-        val bar = findHostBar(decor) ?: return false
-        if (bar.getWidth() <= 0 || bar.getHeight() <= 0) return false
+        val bar = findHostBar(decor)
+        if (bar == null) {
+            ModuleLog.log("V2诊断: findHostBar 返回 null（fv5/fv2 都没找到，或尺寸为0）")
+            return false
+        }
+        if (bar.getWidth() <= 0 || bar.getHeight() <= 0) {
+            ModuleLog.log("V2诊断: 底栏尺寸为 0（${bar.getWidth()}x${bar.getHeight()}）")
+            return false
+        }
+        ModuleLog.log("V2诊断: 找到底栏 ${bar.javaClass.simpleName} ${bar.getWidth()}x${bar.getHeight()}")
 
         val dm = activity.resources.displayMetrics
         val density = dm.density
@@ -90,11 +102,17 @@ internal object FloatingTabBarV2 {
         // 把 overlay 加到 **DecorView** 上会被忽略（它有自己的布局逻辑，只认那个
         // LinearLayout），这正是"日志说挂载成功、画面上看不见"的原因。
         // 必须加到 android.R.id.content 里，并且 bringToFront 到最上层。
-        val content = activity.findViewById<ViewGroup>(android.R.id.content)
-        val root: ViewGroup = content
-            ?: (decor as? ViewGroup)
-            ?: (decor.rootView as? ViewGroup)
-            ?: return false
+        // ⭐⭐ R284（方案 A）：胶囊挂进**宿主底栏本体 fv5** 的最底层（index=0），
+        // 只把它的**背景层**透明掉，tab 图标/文字/播放钮全部保留原样。
+        // 这样：
+        //   · 胶囊在 asz(tab) 和 fke(播放钮) **之下** ⇒ 不会盖住内容
+        //   · fki/fkj(背景层) alpha=0 ⇒ 不再遮挡胶囊
+        //   · 原生 tab 的点击、选中态、动画全部不受影响
+        val root: ViewGroup = (bar as? ViewGroup) ?: run {
+            ModuleLog.log("V2诊断: 底栏不是 ViewGroup，无法插入胶囊")
+            return false
+        }
+        ModuleLog.log("V2诊断: root=fv5 ${root.javaClass.simpleName} children=${root.childCount}")
         val card = FrameLayout(activity)
         card.isClickable = false
         card.isFocusable = false
@@ -105,34 +123,86 @@ internal object FloatingTabBarV2 {
         val bg = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = radius
-            setColor(if (dark) 0xFF23232A.toInt() else 0xFFF7F7FA.toInt())
+            setColor(if (dark) 0xFF2A2A32.toInt() else 0xFFFFFFFF.toInt())
         }
         card.background = bg
 
-        val lp = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            height,
-        ).apply {
-            leftMargin = side
-            rightMargin = side
-            bottomMargin = bottom
-            gravity = android.view.Gravity.BOTTOM
+        // 悬浮感靠阴影：单纯改颜色的话，浅色模式和宿主背景区分不出来
+        //（本轮踩过：先用 #F7F7FA 结果和背景几乎一样，误判成"没画出来"）
+        card.elevation = 10f * density
+        card.outlineProvider = object : android.view.ViewOutlineProvider() {
+            override fun getOutline(v: View, outline: android.graphics.Outline) {
+                outline.setRoundRect(0, 0, v.width, v.height, radius)
+            }
         }
-        root.addView(card, lp)
+        card.clipToOutline = true
+
+        // ⭐ R285：fv5 是 **ConstraintLayout**，直接给 ViewGroup.LayoutParams 不生效
+        //（实测：胶囊被甩到顶部）。用一个 FrameLayout 全屏包装，内部再用
+        // FrameLayout.LayoutParams 的 bottomMargin 定位，避免引入 constraintlayout 依赖。
+        val wrap = FrameLayout(activity)
+        wrap.isClickable = false
+        wrap.isFocusable = false
+        wrap.setOnTouchListener { _, _ -> false }
+        wrap.addView(
+            card,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                height,
+            ).apply {
+                leftMargin = side
+                rightMargin = side
+                bottomMargin = bottom
+                gravity = android.view.Gravity.BOTTOM
+            },
+        )
+        // 包装层插在最底层（index=0），tab 和播放钮自然盖在它上面
+        root.addView(wrap, 0, ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+        ))
         // 必须提到最上层：decor 里通常有 content 等业务容器，
         // 单纯 addView 会被后面的兄弟节点盖住（本轮实测：日志说挂载成功但完全看不见）
         try { card.bringToFront() } catch (_: Throwable) {}
         overlay = card
         appliedActivity = WeakReference(activity)
 
+        // ⭐⭐ R282：**先证明视图真的进了绘制树且可见**，再谈样式。
+        // 前 6 轮失败的根本原因就是只用截图判断"有/没有"，从不验证视图状态。
+        card.post {
+            try {
+                val rect = android.graphics.Rect()
+                val visible = card.getGlobalVisibleRect(rect)
+                ModuleLog.log(
+                    "V2诊断: parent=${card.parent?.javaClass?.simpleName}" +
+                    " attached=${card.isAttachedToWindow}" +
+                    " size=${card.width}x${card.height}" +
+                    " alpha=${card.alpha} vis=${card.visibility}" +
+                    " globalVisible=$visible rect=$rect" +
+                    " rootClass=${root.javaClass.simpleName} rootChildren=${root.childCount}" +
+                    " cardIndex=${(0 until root.childCount).firstOrNull { root.getChildAt(it) === card }}"
+                )
+            } catch (_: Throwable) {
+            }
+        }
+
         // ---- 2) overlay 挂好之后，再隐藏宿主底栏（唯一对宿主的改动，幂等）----
         // 为什么用 alpha 而不是 INVISIBLE/GONE：
         //   · INVISIBLE 参与布局但会影响某些 Visibility 联动逻辑
         //   · GONE 会让宿主重新求解约束（历史上导致过白卡缩宽）
         //   · alpha 只影响绘制，不改测量/布局，View 被宿主复用后也不会留下几何痕迹
+        // 只透明**背景层**，保留 tab / 播放钮
         try {
-            bar.alpha = 0f
-            hostRef = WeakReference(bar)
+            for (bgId in arrayOf("fki", "fkj")) {
+                val bgView = try {
+                    val rid = decor.resources.getIdentifier(bgId, "id", decor.context.packageName)
+                    if (rid != 0) decor.findViewById<View>(rid) else null
+                } catch (_: Throwable) { null }
+                if (bgView != null) {
+                    bgView.alpha = 0f
+                    bgRefs += WeakReference(bgView)
+                }
+            }
         } catch (_: Throwable) {
         }
         ModuleLog.log("悬浮底栏v2: 胶囊已挂载 (side=${side}px h=${height}px bottom=${bottom}px) 宿主几何未改")
@@ -154,6 +224,10 @@ internal object FloatingTabBarV2 {
             hostRef?.get()?.alpha = 1f
         } catch (_: Throwable) {
         }
+        for (r in bgRefs) {
+            try { r.get()?.alpha = 1f } catch (_: Throwable) {}
+        }
+        bgRefs.clear()
         hostRef = null
         appliedActivity = null
     }

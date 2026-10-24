@@ -1436,13 +1436,21 @@ object UiCleaner {
                 // 旧 FloatingTabBar 会在宿主底栏上直接改 LayoutParams/visibility/background，
                 // 而 5.3.1 的宿主复用了同一个 View 实例给「迷你播放条」⇒ 改造残留会改坏它。
                 // V2 只读宿主几何、只改 alpha（幂等），自己叠一层胶囊，零污染。
-                // ⛔ R281（2026-10-24）：**V2 停用，回到原生底栏**。
-                // 两次尝试（挂 DecorView / 挂 content）都出现「日志说挂载成功但画面不可见」，
-                // 而 alpha=0 已生效 ⇒ 底栏直接消失。累计已排查 6 轮，仍未解决。
-                // 为避免持续交付"没有底栏"的构建，这里永久改回：只 remove、不 ensure。
-                // FloatingTabBarV2.kt 保留在代码库，供以后专门排期时从头调。
-                if (FloatingTabBarV2.isApplied()) {
-                    try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
+                // ⭐ R282：带诊断重新启用。这次 addView 后会打日志验证
+                // parent/attached/size/globalVisible，先确认视图真的进了绘制树。
+                if (!onMainPage) {
+                    if (FloatingTabBarV2.isApplied()) {
+                        try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
+                    }
+                } else if (now - lastBarTickAt > 500L) {
+                    lastBarTickAt = now
+                    // ⚠️ R283：不要再静默吞异常 —— V2 的诊断日志一条都没出来，
+                    // 正是因为这个 catch 把所有异常都吃掉了。显式打出来。
+                    try {
+                        FloatingTabBarV2.ensure(activity, decor)
+                    } catch (t: Throwable) {
+                        ModuleLog.log("V2诊断异常: ${t.javaClass.simpleName}: ${t.message}")
+                    }
                 }
             } else if (FloatingTabBarV2.isApplied()) {
                 try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
