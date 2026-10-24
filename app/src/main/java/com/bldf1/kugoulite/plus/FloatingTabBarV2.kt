@@ -224,9 +224,32 @@ internal object FloatingTabBarV2 {
         //   · INVISIBLE 参与布局但会影响某些 Visibility 联动逻辑
         //   · GONE 会让宿主重新求解约束（历史上导致过白卡缩宽）
         //   · alpha 只影响绘制，不改测量/布局，View 被宿主复用后也不会留下几何痕迹
+        // 🔍 诊断：列出底栏本体及其子节点的 background，找出还有哪些底色层在画
+        try {
+            val sb = StringBuilder()
+            fun scan(v: View, d: Int) {
+                if (d > 2) return
+                val rid = try {
+                    if (v.id == View.NO_ID) "-" else v.resources.getResourceEntryName(v.id)
+                } catch (_: Throwable) { "?" }
+                sb.append("\n").append("  ".repeat(d))
+                    .append(v.javaClass.simpleName).append("#").append(rid)
+                    .append(" bg=").append(if (v.background != null) v.background!!.javaClass.simpleName else "null")
+                    .append(" alpha=").append(v.alpha)
+                if (v is ViewGroup) for (i in 0 until v.childCount) scan(v.getChildAt(i), d + 1)
+            }
+            scan(root, 0)
+            ModuleLog.log("V2底色诊断:" + sb.toString())
+        } catch (_: Throwable) {}
+
         // 只透明**背景层**，保留 tab / 播放钮
         try {
-            for (bgId in arrayOf("fki", "fkj")) {
+            // ⭐ R291：实测底栏层级后发现真正的底色来源：
+            //   fv5 > fki > **fkh(HnVisualEffectLayout)**  ← 荣耀实时模糊容器，这才是底色
+            //   fv5 > **fkk**(NinePatchDrawable)           ← 底部/顶部细线
+            // 之前设的 fki/fkj 里，fkj 在这个版本根本不存在，fki 本身 bg=null
+            // ⇒ 只设它们等于没生效，胶囊后面照样透出白色。
+            for (bgId in arrayOf("fki", "fkh", "fkk")) {
                 val bgView = try {
                     val rid = decor.resources.getIdentifier(bgId, "id", decor.context.packageName)
                     if (rid != 0) decor.findViewById<View>(rid) else null

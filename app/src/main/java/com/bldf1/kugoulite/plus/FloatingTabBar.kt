@@ -201,7 +201,8 @@ internal object FloatingTabBar {
     private const val BAR_ID = "fv5"
 
     /** 需要与本体同步收缩高度的子视图（定高，不缩会被居中溢出裁切） */
-    private val SHRINK_IDS = arrayOf("asz", "fkf")
+    // fkf 在 5.3.1 是进度环，不能收缩；只收缩 tab 容器 asz
+    private val SHRINK_IDS = arrayOf("asz")
 
     /**
      * 宿主自带的胶囊底色层（Round 29）。
@@ -217,10 +218,13 @@ internal object FloatingTabBar {
     // 5.3.1 真正的宿主底色层是底栏本体下的一对兄弟节点：
     //   fv5 > fki(FrameLayout 全屏) > fkh > fkj(View)  ← 这层才是实心底
     //   fv5 > asz(tab 容器) / fke(胶囊，**绝不能动**)
-    private val HOST_FILL_IDS = arrayOf("fki", "fkj")
+    // ⭐ R292（5.3.1 实测）：fkj 在这个版本不存在；真正的底色层是
+    //   fki > fkh(HnVisualEffectLayout，荣耀实时模糊容器)
+    //   fv5 > fkk(NinePatchDrawable，细线)
+    private val HOST_FILL_IDS = arrayOf("fki", "fkh", "fkk")
 
     /** 一并清空 background 的容器（可能自带浅色底，一起交给玻璃负责） */
-    private val BG_CLEAR_IDS = arrayOf("fv5", "fkf", "asz")
+    private val BG_CLEAR_IDS = arrayOf("fv5", "fkf", "asz", "fkk")
 
     /** 内容根里滚动容器的类名片段（关掉它们的 clipToPadding，让内容流到胶囊背后） */
     private val SCROLL_CLASS_HINTS = arrayOf("RecyclerView", "ScrollView", "ListView", "ScrollLayout")
@@ -279,7 +283,11 @@ internal object FloatingTabBar {
     private const val DIAG_BAR_FILL = false
 
     /** 胶囊填充层挂载点（毛玻璃包装 FrameLayout） */
-    private const val FILL_HOST_ID = "fkf"
+    // ⭐ R294（5.3.1 实测）：fkf 从「胶囊底板」变成了播放钮的**进度环 CircleProgressBar**！
+    // 拿它当填充宿主 ⇒ 玻璃挂不上（glass=缺失 fallback=-）；
+    // 拿它当收缩目标 ⇒ 会把进度环压扁。
+    // 真正的胶囊容器是 fke(RelativeLayout, 532~688 x 2457~2613)。
+    private const val FILL_HOST_ID = "fke"
 
     // ===== Round 45：关玻璃实色兜底 + push 页隐藏 =====
 
@@ -614,23 +622,7 @@ internal object FloatingTabBar {
                 bar.invalidateOutline()
                 bar.requestLayout()
             }
-            log(always = true) {
-                val sb = StringBuilder("已还原宿主底栏")
-                sb.append(" unclip=${snap.unclipped.size} pad=${snap.paddedBottom.size}")
-                for ((v, orig) in snap.unclipped) {
-                    sb.append(" |${v.javaClass.simpleName} clip $orig->${clipToPaddingOf(v)}")
-                }
-                for ((v, pb) in snap.paddedBottom) {
-                    sb.append(" |${v.javaClass.simpleName} pad $pb->${v.paddingBottom}")
-                }
-                val b2 = snap.bar
-                if (b2 != null) {
-                    sb.append(" |bar h=${b2.height} want=${snap.appliedHeight} vis=${b2.visibility}")
-                    val lp2 = b2.layoutParams
-                    sb.append(" lp=${lp2?.height}/${lp2?.width}")
-                }
-                sb.toString()
-            }
+            log(always = true) { "已还原宿主底栏" }
         } catch (_: Throwable) {
         }
     }

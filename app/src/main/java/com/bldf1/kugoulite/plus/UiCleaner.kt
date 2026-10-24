@@ -1440,23 +1440,30 @@ object UiCleaner {
                 // 旧 FloatingTabBar 会在宿主底栏上直接改 LayoutParams/visibility/background，
                 // 而 5.3.1 的宿主复用了同一个 View 实例给「迷你播放条」⇒ 改造残留会改坏它。
                 // V2 只读宿主几何、只改 alpha（幂等），自己叠一层胶囊，零污染。
-                // ⭐ R282：带诊断重新启用。这次 addView 后会打日志验证
-                // parent/attached/size/globalVisible，先确认视图真的进了绘制树。
-                if (!onMainPage) {
-                    if (FloatingTabBarV2.isApplied()) {
-                        try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
-                    }
-                } else if (now - lastBarTickAt > 500L) {
-                    lastBarTickAt = now
-                    // ⚠️ R283：不要再静默吞异常 —— V2 的诊断日志一条都没出来，
-                    // 正是因为这个 catch 把所有异常都吃掉了。显式打出来。
-                    try {
-                        FloatingTabBarV2.ensure(activity, decor)
-                    } catch (t: Throwable) {
-                        ModuleLog.log("V2诊断异常: ${t.javaClass.simpleName}: ${t.message}")
-                    }
+                // ⭐⭐ R293：**回到旧版 FloatingTabBar（基于它适配，不重写）**。
+                // 旧版早已解决：二级页判断（overlayCovering/branchKind）、
+                // 底色清理（HOST_FILL_IDS/BG_CLEAR_IDS）、胶囊尺寸（62dp）、
+                // 垂直居中、液态玻璃。今天重写 V2 把这些全丢了一遍又踩回来。
+                // 现在只把 id 换成 5.3.1 实测值（fkh 才是真底色、fkk 是顶线）。
+                if (FloatingTabBarV2.isApplied()) {
+                    try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
                 }
-            } else if (FloatingTabBarV2.isApplied()) {
+                // ⛔⛔ R295（2026-10-24 收尾）：**彻底停用，回到原生底栏**。
+                // 今天在这个功能上从 07:00 做到 22:00，15 小时，反复失败：
+                //   · 重写 V2（6 轮）→ 完全失败，最后发现是异常被吞 + 颜色太淡
+                //   · 修复后主页面成功，但二级页残留（3 种页面判断全部失效）
+                //   · 回到旧版适配，逐个修 id：fkh/fkk（底色）、fkf（进度环）…
+                //     FILL_HOST_ID 改成 fke 后玻璃挂进播放钮，底栏变灰半透明 ← 更差
+                // 每次修一个 id 就引入一个新问题，因为没有系统的 5.3.1 底栏 id 对照表。
+                // 为保证交付可用版本，这里停用：
+                if (FloatingTabBar.isApplied()) {
+                    try { FloatingTabBar.restore() } catch (_: Throwable) {}
+                }
+                if (FloatingTabBarV2.isApplied()) {
+                    try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
+                }
+            } else if (FloatingTabBar.isApplied() || FloatingTabBarV2.isApplied()) {
+                try { FloatingTabBar.restore() } catch (_: Throwable) {}
                 try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
             }
             val t0 = System.nanoTime()
