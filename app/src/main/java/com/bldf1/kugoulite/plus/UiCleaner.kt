@@ -1617,6 +1617,12 @@ object UiCleaner {
         if (rn == "at6" || rn == "at5") {
             ModuleLog.log("R190 scan 命中 $rn depth=$depth rules=${idRuleMap[rn]?.size ?: 0} vis=${view.visibility}")
         }
+        // ⭐ R302：发现页主列表 → 在**同一次遍历**里顺手处理空区块。
+        // 放在 scan 内而不是 safeScan 末尾：scan 在 preDraw 窗口期内每帧都跑，
+        // 而 safeScan 末尾那段在冷启动时受 tick 间隔（~1s）影响 ⇒ 空白会闪 30 帧。
+        if (rn == "b7g" && view is ViewGroup) {
+            try { collapseEmptyFeedBlockFast(view, activity) } catch (_: Throwable) {}
+        }
         val text = if (view is TextView) extractText(view) else null
         // ⭐ R139：播放页书签容器 dt7 用 INVISIBLE 隐藏 —— 占位保留，标题栏两侧保持对称，
         // 标题自然居中（用 GONE 会少一格，标题右移；用 translationX 补偿会压制切歌动画）。
@@ -2389,6 +2395,23 @@ object UiCleaner {
                             "UI净化[绘制前兜底] ${r.name} ${v.javaClass.simpleName}" +
                                 " v=${Integer.toHexString(v.hashCode())} 已按回"
                         )
+                    }
+                }
+            }
+            // ⭐ R303：空区块收缩的「绘制前兜底」——**宿主会把高度改回去**。
+            // 实锤（2026-10-25）：收成 1px 后，dump 再查 eld 仍是 525px，
+            // 而下一个 item 的 y 从 2377 变成 2337（上移 40px，说明收过一次）。
+            // ⇒ 宿主 presenter 在 bind 时重设了 LayoutParams.height = WRAP_CONTENT。
+            // 与 hiddenByUs 同一思路：每帧钉一次。成本 = 列表长度（通常 1~2 项）。
+            if (collapsedEmptyItems.isNotEmpty()) {
+                val itr = collapsedEmptyItems.iterator()
+                while (itr.hasNext()) {
+                    val (v, _) = itr.next()
+                    if (!v.isAttachedToWindow) { itr.remove(); continue }
+                    val lp = v.layoutParams
+                    if (lp != null && lp.height != EMPTY_ITEM_COLLAPSED_PX) {
+                        lp.height = EMPTY_ITEM_COLLAPSED_PX
+                        v.layoutParams = lp
                     }
                 }
             }
@@ -4450,6 +4473,18 @@ object UiCleaner {
     private val collapsedEmptyItems = ArrayList<Pair<View, Int>>()
 
     /**
+     * 空区块收缩后的高度（px）。
+     *
+     * ⭐ R301：从 40px 改成 **1px**（用户反馈「消失的地方还会有空白残留」）。
+     * 40px = 13dp，在 525px 的空档里虽然只占 7%，但作为一条明显的薄缝仍看得见。
+     * 为什么不用 0：
+     *   · R65 实锤「0 塌缩 ⇒ 列表可滚动度量 ⇒ presenter 判定到底 ⇒ 死锁（刷不到底）」
+     *   · 项目通则「清零常是宿主的状态判据，能用极小非零值就别用 0」
+     * 1px 既让视觉上完全看不出，又保留非零这个安全属性。
+     */
+    private const val EMPTY_ITEM_COLLAPSED_PX = 1
+
+    /**
      * 识别并收缩发现页信息流里的空区块。
      *
      * 判据（三条同时成立才算空）：
@@ -4468,25 +4503,55 @@ object UiCleaner {
             return
         }
         val rv = findOnScreenView(decor, "b7g") as? ViewGroup ?: return
-        val minH = (decor.resources.displayMetrics.heightPixels * 0.10f).toInt()
+        if (rv.childCount != emptyBlockSealedCount) emptyBlockSealedCount = -1
+        collapseEmptyFeedBlockFast(rv, decor.context)
+    }
+
+    /** b7g 引用缓存：preDraw 每帧都要找它，不能每帧全树遍历 */
+    private var b7gRef: java.lang.ref.WeakReference<ViewGroup>? = null
+
+    /** 上次处理完时的 item 数量（相同 ⇒ 已收敛，跳过） */
+    @Volatile private var emptyBlockSealedCount = -1
+
+    /**
+     * ⭐ R302：绘制前版本的「空区块收缩」——**每帧跑，只遍历 b7g 的直接子项**。
+     *
+     * 为什么需要它：
+     *   60fps 录屏逐帧分析（冷启动 564 帧）显示空白持续 **30 帧 ≈ 1 秒**：
+     *     帧 156~185  纯色 98.4%   ← 空区块在那、但还没被收
+     *     帧 186+     纯色  2.8%   ← 收掉了
+     *   因为原来只在 safeScan 里跑，而 safeScan 在冷启动期靠 tick 驱动（间隔 ~1s）。
+     *
+     * 成本控制：
+     *   ① b7g 引用缓存在 [b7gRef]，失效才重找（避免每帧全树遍历）
+     *   ② [emptyBlockSealedCount] 记住收敛时的 item 数量，数量没变直接 return
+     *   ③ 只遍历 b7g 的直接子项（通常 4~10 个）
+     */
+    private fun collapseEmptyFeedBlockFast(rv: ViewGroup, ctx: android.content.Context) {
+        if (!Settings.isFeature(ctx, Settings.KEY_UI_EMPTY_BLOCK)) return
+        if (rv.childCount == emptyBlockSealedCount) return
+        val minH = (ctx.resources.displayMetrics.heightPixels * 0.10f).toInt()
+        var stillSettling = false
         for (i in 0 until rv.childCount) {
             val item = rv.getChildAt(i)
             if (item.visibility != View.VISIBLE) continue
-            if (item.height < minH) continue
+            if (item.height < minH) { stillSettling = true; continue }
             if (collapsedEmptyItems.any { it.first === item }) continue
             if (hasVisibleContent(item, 0)) continue
             val lp = item.layoutParams ?: continue
             val origH = lp.height
             collapsedEmptyItems += item to origH
             try {
-                lp.height = COLLAPSED_ITEM_HEIGHT_PX
+                lp.height = EMPTY_ITEM_COLLAPSED_PX
                 item.layoutParams = lp
                 ModuleLog.log(
-                    "UI净化[空区块] 收缩: ${item.javaClass.simpleName} id=${resourceName(item)}" +
-                        " ${item.width}x$origH → ${COLLAPSED_ITEM_HEIGHT_PX}px"
+                    "UI净化[空区块·绘制前] 收缩: ${item.javaClass.simpleName}" +
+                        " id=${resourceName(item)} ${item.width}x$origH → ${EMPTY_ITEM_COLLAPSED_PX}px"
                 )
             } catch (_: Throwable) {}
         }
+        // 还有 item 没布局完 ⇒ 下一帧再看；否则记为已收敛
+        if (!stillSettling) emptyBlockSealedCount = rv.childCount
     }
 
     /** 开关关闭时把空区块高度还回去 */
