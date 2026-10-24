@@ -1432,24 +1432,19 @@ object UiCleaner {
                     barPageLogedFor = curPageId
                     ModuleLog.log("R271 底栏页面判定 curPageId=$curPageId onMain=$onMainPage")
                 }
-                if (!onMainPage) {
-                    // 离开主页面时还原宿主原样，避免在别的页面留下改造痕迹
-                    if (FloatingTabBar.isApplied()) {
-                        try { FloatingTabBar.restore() } catch (_: Throwable) {}
-                    }
-                } else {
-                    val due = now - lastBarTickAt > (if (FloatingTabBar.isApplied()) 4000L else 500L)
-                    if (due) {
-                        lastBarTickAt = now
-                        try {
-                            if (FloatingTabBar.isApplied()) FloatingTabBar.verify()
-                            else FloatingTabBar.ensure(activity, decor)
-                        } catch (_: Throwable) {
-                        }
-                    }
+                // ⭐ R279：改用**独立 overlay 方案**（FloatingTabBarV2）。
+                // 旧 FloatingTabBar 会在宿主底栏上直接改 LayoutParams/visibility/background，
+                // 而 5.3.1 的宿主复用了同一个 View 实例给「迷你播放条」⇒ 改造残留会改坏它。
+                // V2 只读宿主几何、只改 alpha（幂等），自己叠一层胶囊，零污染。
+                // ⚠️ V2 暂未启用：胶囊 overlay 挂载后不可见（层级问题未解决），
+                // 而它会设宿主 alpha=0 ⇒ 底栏直接消失。在定位清楚前保持关闭，
+                // 保证 v1.3 发出的是「原生底栏」而不是「没有底栏」。
+                // 待解决：decor 层级 / LayoutParams 生效问题。
+                if (FloatingTabBarV2.isApplied()) {
+                    try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
                 }
-            } else if (FloatingTabBar.isApplied()) {
-                try { FloatingTabBar.restore() } catch (_: Throwable) {}
+            } else if (FloatingTabBarV2.isApplied()) {
+                try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
             }
             val t0 = System.nanoTime()
             scan(decor, activity, hidden, 0)
