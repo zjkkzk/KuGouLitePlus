@@ -1422,13 +1422,30 @@ object UiCleaner {
             // 悬浮底栏（Round 24）：未改造时 500ms 一次尝试定位；已改造则 4s 一次存活校验。
             // 关掉开关立即还原宿主原样。
             if (Settings.isFeature(activity, Settings.KEY_UI_FLOATING_BAR)) {
-                val due = now - lastBarTickAt > (if (FloatingTabBar.isApplied()) 4000L else 500L)
-                if (due) {
-                    lastBarTickAt = now
-                    try {
-                        if (FloatingTabBar.isApplied()) FloatingTabBar.verify()
-                        else FloatingTabBar.ensure(activity, decor)
-                    } catch (_: Throwable) {
+                // ⭐ R271（用户明确要求）：**悬浮底栏 / 液态玻璃底栏只在主页面生效**。
+                // 主页面的 curPageId 是 "discovery"(发现) 或 "main"(我的)；
+                // 播放页/搜索页/设置页/收藏/最近 等二级页面是 frag:xxx / search / settings。
+                // 之前完全没有页面判断 ⇒ 任何页面（包括播放页、模块面板所在页）都会
+                // 尝试改造底栏，既浪费性能也可能改到不该改的布局。
+                val onMainPage = curPageId == "main" || curPageId == "discovery"
+                if (barPageLogedFor != curPageId) {
+                    barPageLogedFor = curPageId
+                    ModuleLog.log("R271 底栏页面判定 curPageId=$curPageId onMain=$onMainPage")
+                }
+                if (!onMainPage) {
+                    // 离开主页面时还原宿主原样，避免在别的页面留下改造痕迹
+                    if (FloatingTabBar.isApplied()) {
+                        try { FloatingTabBar.restore() } catch (_: Throwable) {}
+                    }
+                } else {
+                    val due = now - lastBarTickAt > (if (FloatingTabBar.isApplied()) 4000L else 500L)
+                    if (due) {
+                        lastBarTickAt = now
+                        try {
+                            if (FloatingTabBar.isApplied()) FloatingTabBar.verify()
+                            else FloatingTabBar.ensure(activity, decor)
+                        } catch (_: Throwable) {
+                        }
                     }
                 }
             } else if (FloatingTabBar.isApplied()) {
@@ -2274,6 +2291,14 @@ object UiCleaner {
      */
     private val SETTINGS_ROOT_IDS = listOf("av7")
 
+    /** R272：无 UI 的内部 Fragment，不能用来判定页面 */
+    private val INTERNAL_FRAGMENTS = listOf(
+        "SupportRequestManagerFragment",   // Glide
+        "LifecycleDispatcher",             // androidx.lifecycle
+        "ConfigurationChangeFragment",     // androidx
+        "ReportFragment",                  // androidx.initialization
+    )
+
     /** 视图是否位于设置页（R255） */
     // ⭐ R268（性能修复）：R266 引入的全树深搜在热路径上代价过大。
     // 实测：播放页掉帧 14.85%（30/202 帧），而发现页只有 0.45%。
@@ -2695,6 +2720,10 @@ object UiCleaner {
     @Volatile
     private var curPageId: String = ""
 
+    /** R271：底栏页面判定日志去重（只在页面变化时打一条） */
+    @Volatile
+    private var barPageLogedFor: String = ""
+
     /** 计算页面 id：Activity 类名 → 栈顶 Fragment → 主 pager 页 */
     private fun computePageId(a: Activity): String = try {
         val cn = a.javaClass.name
@@ -2702,7 +2731,13 @@ object UiCleaner {
             cn.contains("Search", true) -> "search"
             else -> {
                 val tag = activePageTag(a)
-                if (tag == "?") {
+                // ⭐ R272（实锤）：Glide / Lifecycle / AndroidX 的**内部空 Fragment** 会抢到
+                // resumed 状态，activePageTag 取到它们 ⇒ curPageId 变成
+                // "frag:SupportRequestManagerFragment" ⇒ 页面判断全废。
+                // 实测：底栏刚改造完 111ms 就被判定为"不在主页面"从而还原，
+                // 日志：discovery → frag:SupportRequestManagerFragment。
+                // 这些 Fragment 没有 UI，直接回流到主 pager 推断。
+                if (tag == "?" || INTERNAL_FRAGMENTS.any { tag.contains(it) }) {
                     // 主 pager：0=发现 / 1=我的
                     if (mainPageIndex < 0) "" else if (mainPageIndex == 1) "main" else "discovery"
                 } else when {

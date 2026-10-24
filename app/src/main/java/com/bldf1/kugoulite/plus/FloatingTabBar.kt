@@ -191,14 +191,17 @@ internal object FloatingTabBar {
      */
     private const val GLASS_RECORD_INTERVAL_MS = 16L
 
-    // 锚点链：at0(发现文字) → asy(发现tab) → asx(tab容器) → fv2(底栏本体)
-    private val CHAIN = arrayOf("at0", "asy", "asx", "fv2")
+    // 锚点链（⭐ R270 / 5.3.1 适配）：
+    //   at0(发现 tab) → asz(tab 容器) → fv5(底栏本体)
+    // 5.3.0 的 asy / asx / fv2 在 5.3.1 全部不存在 ⇒ 旧链在第二个节点就断，
+    // ensure() 永远找不到底栏本体 ⇒ 悬浮底栏/液态玻璃底栏在 5.3.1 **完全没生效**。
+    private val CHAIN = arrayOf("at0", "asz", "fv5")
 
     /** 底栏本体 ID（= CHAIN 末级） */
-    private const val BAR_ID = "fv2"
+    private const val BAR_ID = "fv5"
 
     /** 需要与本体同步收缩高度的子视图（定高，不缩会被居中溢出裁切） */
-    private val SHRINK_IDS = arrayOf("asx", "fkf")
+    private val SHRINK_IDS = arrayOf("asz", "fkf")
 
     /**
      * 宿主自带的胶囊底色层（Round 29）。
@@ -208,10 +211,10 @@ internal object FloatingTabBar {
      * 的地方（录到的内容 alpha=0）就透出这层白 ⇒ 胶囊看着仍像原来的实色栏
      * （用户报「底栏还在渲染」）。处置见 [applyTo] ②c。
      */
-    private val HOST_FILL_IDS = arrayOf("fke", "fkg")
+    private val HOST_FILL_IDS = arrayOf("fke")
 
     /** 一并清空 background 的容器（可能自带浅色底，一起交给玻璃负责） */
-    private val BG_CLEAR_IDS = arrayOf("fv2", "fkf", "asx")
+    private val BG_CLEAR_IDS = arrayOf("fv5", "fkf", "asz")
 
     /** 内容根里滚动容器的类名片段（关掉它们的 clipToPadding，让内容流到胶囊背后） */
     private val SCROLL_CLASS_HINTS = arrayOf("RecyclerView", "ScrollView", "ListView", "ScrollLayout")
@@ -1089,7 +1092,8 @@ internal object FloatingTabBar {
         val dv = decor as? ViewGroup ?: return false
         detachedWheel?.let { if (it.parent === dv) return true }
 
-        val wheel = try { findBarChild(bar, decor, act, "fkb") } catch (_: Throwable) { null }
+        // ⭐ R270：5.3.1 的迷你播放钮是 fkc(542,2467-677,2602)，5.3.0 的 fkb 已不存在
+        val wheel = try { findBarChild(bar, decor, act, "fkc") ?: findBarChild(bar, decor, act, "fkb") } catch (_: Throwable) { null }
             ?: return false
         // ⭐ R117：转盘显隐**由宿主决定** —— 宿主没设 VISIBLE（如某些页面设 GONE）就不摘
         if (wheel.visibility != View.VISIBLE) return false
