@@ -1431,9 +1431,9 @@ object UiCleaner {
                 // （实测：最近播放页 curPageId=main ⇒ overlay 没被移除，胶囊残留）。
                 // 改用**结构信号**：底栏的 at2("发现") 和 at5("我的") 两个 tab 文字
                 // 只在主页面存在，二级页的底栏被迷你播放条替代 ⇒ 更可靠。
-                val onMainPage = barTabsPresent(decor)
-                if (barPageLogedFor != curPageId) {
-                    barPageLogedFor = curPageId
+                val onMainPage = onMainBarPage(activity, decor)
+                if (barPageLogedFor != curPageId + onMainPage.toString()) {
+                    barPageLogedFor = curPageId + onMainPage.toString()
                     ModuleLog.log("R271 底栏页面判定 curPageId=$curPageId onMain=$onMainPage")
                 }
                 // ⭐ R279：改用**独立 overlay 方案**（FloatingTabBarV2）。
@@ -2744,6 +2744,40 @@ object UiCleaner {
      * 改用结构信号：宿主底栏的 at2("发现") + at5("我的") 两个 tab 文字
      * **只在主页面存在**。二级页的底栏位置被迷你播放条替代，没有这两个 tab。
      */
+    /**
+     * R287：判断当前是否在主页面（发现/我的）—— **用 Fragment backstack 深度**。
+     *
+     * 为什么换掉前两种：
+     *   · curPageId             → 二级页 Fragment 判断不可靠，误判成 "main"
+     *   · findViewById(at2) != null → 二级页里节点仍在树里，只是被覆盖
+     *   · + visibility/isShown  → tab 被我们 alpha=0 的父层影响，仍返回 true
+     *
+     * backstack 深度是最干净的信号：**二级页会把 Fragment 压栈，主页面深度为 0**。
+     * 而且它不会被我们对底栏做的任何视觉改动污染。
+     * 用反射拿，避免为模块引入 androidx.fragment 依赖。
+     */
+    private fun onMainBarPage(activity: Activity, decor: View): Boolean {
+        // 1) 优先：Fragment backstack 深度
+        val depth = try {
+            val getFm = activity.javaClass.methods.firstOrNull {
+                it.name == "getSupportFragmentManager" && it.parameterTypes.isEmpty()
+            }
+            val fm = getFm?.invoke(activity)
+            if (fm != null) {
+                val m = fm.javaClass.methods.firstOrNull {
+                    it.name == "getBackStackEntryCount" && it.parameterTypes.isEmpty()
+                }
+                (m?.invoke(fm) as? Int) ?: -1
+            } else -1
+        } catch (_: Throwable) {
+            -1
+        }
+        if (depth >= 0) return depth == 0
+
+        // 2) 兜底：结构信号（tab 节点存在且可见）
+        return barTabsPresent(decor)
+    }
+
     private fun barTabsPresent(decor: View): Boolean {
         return try {
             val pkg = decor.context.packageName

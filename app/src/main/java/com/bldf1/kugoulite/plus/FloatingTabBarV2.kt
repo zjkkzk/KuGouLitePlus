@@ -44,14 +44,33 @@ internal object FloatingTabBarV2 {
     /** 胶囊左右边距（px，1080 基准按 density 缩放） */
     private const val SIDE_DP = 16f
 
-    /** 胶囊高度（dp） */
-    private const val HEIGHT_DP = 62f
+    // ⭐ R288：按宿主 tab 的真实位置重新对齐（用户反馈"底栏太低、图标没居中"）。
+    //
+    // 实测 5.3.1 底栏几何（density=3.0，fv5 = 2442~2712，高 270px）：
+    //   发现图标 at1   y 2478~2553
+    //   发现文字 at2   y 2562~2599
+    //   ⇒ tab 内容区间 y 2478~2599（高 121px），垂直中心 ≈ 2538
+    //
+    // 胶囊要求：包住 2478~2599 且上下留白均匀 ⇒ y 2466~2610（高 144px），
+    // 中心 2538 = tab 中心 ⇒ 图标视觉居中。
+    // 相对 fv5 底部（2712）：bottomMargin = 2712 - 2610 = 102px = 34dp
+    // ⭐ R289：胶囊必须包住**最高的子元素**。
+    // 5.3.1 底栏里三个元素的实测高度：
+    //   发现 tab（at1 图标 2478~2553 + at2 文字 2562~2599）  121px
+    //   播放钮（fke 2457~2613）                             156px  ← 最高
+    //   我的 tab（at4 + at5）                               121px
+    // 胶囊高度 144px < 156px ⇒ 播放钮上下被裁（用户反馈"图标没居中"）。
+    // 改为 168px（156 + 上下各 6px 留白），底边贴 2613：
+    //   bottomMargin = 2712 - 2613 = 99px = 33dp
+    //   胶囊 y 2445~2613，中心 2529 ≈ 播放钮中心 2535 ✓
+    /** 胶囊高度（dp）→ 168px */
+    private const val HEIGHT_DP = 56f
 
-    /** 距屏幕底部（dp） */
-    private const val BOTTOM_DP = 10f
+    /** 距底栏底部（dp）→ 99px */
+    private const val BOTTOM_DP = 33f
 
-    /** 圆角（dp） */
-    private const val RADIUS_DP = 31f
+    /** 圆角（dp）→ 28dp = 84px = 高度一半，完整药丸形 */
+    private const val RADIUS_DP = 28f
 
     private var overlay: View? = null
     private var hostRef: WeakReference<View>? = null
