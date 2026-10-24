@@ -946,6 +946,15 @@ internal object FloatingTabBar {
                 attachFallbackFill(snap, fillHost, activity)
             }
 
+            // ⭐ R275：中间播放钮（fke，5.3.1 的胶囊）必须保持在**最上层**。
+            // 我们插入的玻璃填充层挂在 fkf（胶囊底）里，而播放钮内容（fkc/封面）
+            // 是 fke 的子——层级本身应该没问题；但实测截图上播放钮被胶囊压住只露上半截，
+            // 说明宿主或我们的插入把 z-order 打乱了。直接 bringToFront 兜住，
+            // 这是幂等操作，不会影响几何。
+            try {
+                findBarChild(bar, decor, activity, "fke")?.bringToFront()
+            } catch (_: Throwable) {
+            }
             snap.appliedHeight = height
             snap.activityRef = WeakReference(activity)
             snap.decorRef = WeakReference(decor)
