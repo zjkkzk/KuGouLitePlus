@@ -256,9 +256,12 @@ object UiCleaner {
         Rule(Settings.KEY_UI_TAOBAO_BAR, "发现页淘宝推广条",
             listOf(), listOf("淘宝"), hideParentLevels = 1,
             climbParentIdNames = listOf("bnr")),
+        // ⭐ R296：加 collapseHeight —— 只 GONE 不收缩高度时，RecyclerView 仍按
+        // 测量高度给该 item 分配空间 ⇒ 留下整块空白（用户实锤「多了一片空白」）。
+        // 实测：关掉本条后底部区域纯色占比从 99.1% 降到 0.6%，即整片空白消失。
         Rule(Settings.KEY_UI_TMALL_CARD, "发现页天猫活动卡",
             listOf(), listOf("天猫"), hideParentLevels = 1,
-            climbParentIdNames = listOf("fmx")),
+            climbParentIdNames = listOf("fmx"), collapseHeight = true),
         Rule(Settings.KEY_UI_PLAY_AD, "播放页广告",
             listOf("PlayAd", "PlayerAd", "SongAd", "PlayPageAd"), listOf()),
         // ⚠️ R79 修正：本条原先挂在 `KEY_UI_PLAY_AD`（去播放页广告）上 —— 结果面板上
@@ -365,7 +368,8 @@ object UiCleaner {
             // ⚠️ ID 门禁（真机实锤 10-12）：feed 推荐语槽位 b5w 的文案可能包含
             // "组队领…VIP"（用户推荐语），无门禁会把**正常推荐卡文案**当成邀请
             // 提示隐藏，且发生在已绘制之后（闪现）。同 b6b/b5w 门禁思路。
-            excludeIdNames = listOf("b5w")),
+            // ⭐ R296：加 collapseHeight（同天猫卡）—— 不收缩会留整块空白。
+            excludeIdNames = listOf("b5w"), collapseHeight = true),
         // ⭐ R256（2026-10-23）：**恢复**「概念实验室」规则。
         // R254 曾整条删除，理由是「设置页不该净化」——判断不完整：这条规则
         // 在**发现页信息流底部**也有落点（实测区块：邀好友得年卡 / 3人组队领VIP /
@@ -2817,7 +2821,7 @@ object UiCleaner {
                 // 实测：底栏刚改造完 111ms 就被判定为"不在主页面"从而还原，
                 // 日志：discovery → frag:SupportRequestManagerFragment。
                 // 这些 Fragment 没有 UI，直接回流到主 pager 推断。
-                if (tag == "?" || INTERNAL_FRAGMENTS.any { tag.contains(it) }) {
+                if (tag == "?") {
                     // 主 pager：0=发现 / 1=我的
                     if (mainPageIndex < 0) "" else if (mainPageIndex == 1) "main" else "discovery"
                 } else when {

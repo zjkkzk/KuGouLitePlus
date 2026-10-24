@@ -191,18 +191,14 @@ internal object FloatingTabBar {
      */
     private const val GLASS_RECORD_INTERVAL_MS = 16L
 
-    // 锚点链（⭐ R270 / 5.3.1 适配）：
-    //   at0(发现 tab) → asz(tab 容器) → fv5(底栏本体)
-    // 5.3.0 的 asy / asx / fv2 在 5.3.1 全部不存在 ⇒ 旧链在第二个节点就断，
-    // ensure() 永远找不到底栏本体 ⇒ 悬浮底栏/液态玻璃底栏在 5.3.1 **完全没生效**。
-    private val CHAIN = arrayOf("at0", "asz", "fv5")
+    // 锚点链：at0(发现文字) → asy(发现tab) → asx(tab容器) → fv2(底栏本体)
+    private val CHAIN = arrayOf("at0", "asy", "asx", "fv2")
 
     /** 底栏本体 ID（= CHAIN 末级） */
-    private const val BAR_ID = "fv5"
+    private const val BAR_ID = "fv2"
 
     /** 需要与本体同步收缩高度的子视图（定高，不缩会被居中溢出裁切） */
-    // fkf 在 5.3.1 是进度环，不能收缩；只收缩 tab 容器 asz
-    private val SHRINK_IDS = arrayOf("asz")
+    private val SHRINK_IDS = arrayOf("asx", "fkf")
 
     /**
      * 宿主自带的胶囊底色层（Round 29）。
@@ -212,19 +208,10 @@ internal object FloatingTabBar {
      * 的地方（录到的内容 alpha=0）就透出这层白 ⇒ 胶囊看着仍像原来的实色栏
      * （用户报「底栏还在渲染」）。处置见 [applyTo] ②c。
      */
-    // ⭐ R273（严重误伤修正）：5.3.0 的 fke 是宿主的 HnVisualEffectLayout 模糊容器，
-    // 5.3.1 里 **fke 变成了迷你播放钮的容器**(532,2457-688,2613)！
-    // 之前沿用 fke ⇒ 把播放钮设成 INVISIBLE ⇒ 用户实锤「少了中间按钮」。
-    // 5.3.1 真正的宿主底色层是底栏本体下的一对兄弟节点：
-    //   fv5 > fki(FrameLayout 全屏) > fkh > fkj(View)  ← 这层才是实心底
-    //   fv5 > asz(tab 容器) / fke(胶囊，**绝不能动**)
-    // ⭐ R292（5.3.1 实测）：fkj 在这个版本不存在；真正的底色层是
-    //   fki > fkh(HnVisualEffectLayout，荣耀实时模糊容器)
-    //   fv5 > fkk(NinePatchDrawable，细线)
-    private val HOST_FILL_IDS = arrayOf("fki", "fkh", "fkk")
+    private val HOST_FILL_IDS = arrayOf("fke", "fkg")
 
     /** 一并清空 background 的容器（可能自带浅色底，一起交给玻璃负责） */
-    private val BG_CLEAR_IDS = arrayOf("fv5", "fkf", "asz", "fkk")
+    private val BG_CLEAR_IDS = arrayOf("fv2", "fkf", "asx")
 
     /** 内容根里滚动容器的类名片段（关掉它们的 clipToPadding，让内容流到胶囊背后） */
     private val SCROLL_CLASS_HINTS = arrayOf("RecyclerView", "ScrollView", "ListView", "ScrollLayout")
@@ -283,11 +270,7 @@ internal object FloatingTabBar {
     private const val DIAG_BAR_FILL = false
 
     /** 胶囊填充层挂载点（毛玻璃包装 FrameLayout） */
-    // ⭐ R294（5.3.1 实测）：fkf 从「胶囊底板」变成了播放钮的**进度环 CircleProgressBar**！
-    // 拿它当填充宿主 ⇒ 玻璃挂不上（glass=缺失 fallback=-）；
-    // 拿它当收缩目标 ⇒ 会把进度环压扁。
-    // 真正的胶囊容器是 fke(RelativeLayout, 532~688 x 2457~2613)。
-    private const val FILL_HOST_ID = "fke"
+    private const val FILL_HOST_ID = "fkf"
 
     // ===== Round 45：关玻璃实色兜底 + push 页隐藏 =====
 
@@ -872,30 +855,23 @@ internal object FloatingTabBar {
             // 覆盖不到的地方（录到的内容 alpha=0）就透出这层白 ⇒ 胶囊看着仍像原来的实色栏。
             // 处置：`fke`/`fkg` 置 INVISIBLE（同尺寸，不影响布局），`fv2`/`fkf`/`asx` 的
             // background 一并清空 —— 胶囊的底色从此只由我们负责（关掉玻璃 = 真正透明）。
-            // ⭐ R274（严重修正）：只有**我们自己的背景层成功挂上**时，才允许清宿主底色。
-            // 实锤：日志 glass=缺失 fallback=- （玻璃和实色兜底都没挂上），
-            // 但宿主底色照样被清了 ⇒ 底栏变成完全透明，内容直接透出来。
-            // 宁可保留宿主的白底（看起来是原生底栏），也不能让它全透。
-            val hasOurBacking = snap.fill != null || snap.fallback != null
-            if (hasOurBacking) {
-                if (snap.hiddenFill.isEmpty()) {
-                    for (name in HOST_FILL_IDS) {
-                        val v = findBarChild(bar, decor, activity, name) ?: continue
-                        snap.hiddenFill += v to v.visibility
-                    }
+            if (snap.hiddenFill.isEmpty()) {
+                for (name in HOST_FILL_IDS) {
+                    val v = findBarChild(bar, decor, activity, name) ?: continue
+                    snap.hiddenFill += v to v.visibility
                 }
-                for ((v, _) in snap.hiddenFill) {
-                    if (v.visibility != View.INVISIBLE) v.visibility = View.INVISIBLE
-                }
-
-                if (snap.clearedBg.isEmpty()) {
-                    for (name in BG_CLEAR_IDS) {
-                        val v = if (name == BAR_ID) bar else findBarChild(bar, decor, activity, name) ?: continue
-                        if (v.background != null) snap.clearedBg += v to v.background
-                    }
-                }
-                for ((v, _) in snap.clearedBg) v.background = null
             }
+            for ((v, _) in snap.hiddenFill) {
+                if (v.visibility != View.INVISIBLE) v.visibility = View.INVISIBLE
+            }
+
+            if (snap.clearedBg.isEmpty()) {
+                for (name in BG_CLEAR_IDS) {
+                    val v = if (name == BAR_ID) bar else findBarChild(bar, decor, activity, name) ?: continue
+                    if (v.background != null) snap.clearedBg += v to v.background
+                }
+            }
+            for ((v, _) in snap.clearedBg) v.background = null
 
             // ---- ②d 让内容流到胶囊背后（Round 30）----
             // 宿主按「底栏占位高」(topMargin 18 + height 186 = 204) 给内容列表留了
@@ -954,15 +930,6 @@ internal object FloatingTabBar {
                 attachFallbackFill(snap, fillHost, activity)
             }
 
-            // ⭐ R275：中间播放钮（fke，5.3.1 的胶囊）必须保持在**最上层**。
-            // 我们插入的玻璃填充层挂在 fkf（胶囊底）里，而播放钮内容（fkc/封面）
-            // 是 fke 的子——层级本身应该没问题；但实测截图上播放钮被胶囊压住只露上半截，
-            // 说明宿主或我们的插入把 z-order 打乱了。直接 bringToFront 兜住，
-            // 这是幂等操作，不会影响几何。
-            try {
-                findBarChild(bar, decor, activity, "fke")?.bringToFront()
-            } catch (_: Throwable) {
-            }
             snap.appliedHeight = height
             snap.activityRef = WeakReference(activity)
             snap.decorRef = WeakReference(decor)
@@ -1122,8 +1089,7 @@ internal object FloatingTabBar {
         val dv = decor as? ViewGroup ?: return false
         detachedWheel?.let { if (it.parent === dv) return true }
 
-        // ⭐ R270：5.3.1 的迷你播放钮是 fkc(542,2467-677,2602)，5.3.0 的 fkb 已不存在
-        val wheel = try { findBarChild(bar, decor, act, "fkc") ?: findBarChild(bar, decor, act, "fkb") } catch (_: Throwable) { null }
+        val wheel = try { findBarChild(bar, decor, act, "fkb") } catch (_: Throwable) { null }
             ?: return false
         // ⭐ R117：转盘显隐**由宿主决定** —— 宿主没设 VISIBLE（如某些页面设 GONE）就不摘
         if (wheel.visibility != View.VISIBLE) return false
