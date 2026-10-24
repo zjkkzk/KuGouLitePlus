@@ -256,12 +256,9 @@ object UiCleaner {
         Rule(Settings.KEY_UI_TAOBAO_BAR, "发现页淘宝推广条",
             listOf(), listOf("淘宝"), hideParentLevels = 1,
             climbParentIdNames = listOf("bnr")),
-        // ⭐ R296：加 collapseHeight —— 只 GONE 不收缩高度时，RecyclerView 仍按
-        // 测量高度给该 item 分配空间 ⇒ 留下整块空白（用户实锤「多了一片空白」）。
-        // 实测：关掉本条后底部区域纯色占比从 99.1% 降到 0.6%，即整片空白消失。
         Rule(Settings.KEY_UI_TMALL_CARD, "发现页天猫活动卡",
             listOf(), listOf("天猫"), hideParentLevels = 1,
-            climbParentIdNames = listOf("fmx"), collapseHeight = true),
+            climbParentIdNames = listOf("fmx")),
         Rule(Settings.KEY_UI_PLAY_AD, "播放页广告",
             listOf("PlayAd", "PlayerAd", "SongAd", "PlayPageAd"), listOf()),
         // ⚠️ R79 修正：本条原先挂在 `KEY_UI_PLAY_AD`（去播放页广告）上 —— 结果面板上
@@ -368,8 +365,7 @@ object UiCleaner {
             // ⚠️ ID 门禁（真机实锤 10-12）：feed 推荐语槽位 b5w 的文案可能包含
             // "组队领…VIP"（用户推荐语），无门禁会把**正常推荐卡文案**当成邀请
             // 提示隐藏，且发生在已绘制之后（闪现）。同 b6b/b5w 门禁思路。
-            // ⭐ R296：加 collapseHeight（同天猫卡）—— 不收缩会留整块空白。
-            excludeIdNames = listOf("b5w"), collapseHeight = true),
+            excludeIdNames = listOf("b5w")),
         // ⭐ R256（2026-10-23）：**恢复**「概念实验室」规则。
         // R254 曾整条删除，理由是「设置页不该净化」——判断不完整：这条规则
         // 在**发现页信息流底部**也有落点（实测区块：邀好友得年卡 / 3人组队领VIP /
@@ -1444,30 +1440,23 @@ object UiCleaner {
                 // 旧 FloatingTabBar 会在宿主底栏上直接改 LayoutParams/visibility/background，
                 // 而 5.3.1 的宿主复用了同一个 View 实例给「迷你播放条」⇒ 改造残留会改坏它。
                 // V2 只读宿主几何、只改 alpha（幂等），自己叠一层胶囊，零污染。
-                // ⭐⭐ R293：**回到旧版 FloatingTabBar（基于它适配，不重写）**。
-                // 旧版早已解决：二级页判断（overlayCovering/branchKind）、
-                // 底色清理（HOST_FILL_IDS/BG_CLEAR_IDS）、胶囊尺寸（62dp）、
-                // 垂直居中、液态玻璃。今天重写 V2 把这些全丢了一遍又踩回来。
-                // 现在只把 id 换成 5.3.1 实测值（fkh 才是真底色、fkk 是顶线）。
-                if (FloatingTabBarV2.isApplied()) {
-                    try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
+                // ⭐ R282：带诊断重新启用。这次 addView 后会打日志验证
+                // parent/attached/size/globalVisible，先确认视图真的进了绘制树。
+                if (!onMainPage) {
+                    if (FloatingTabBarV2.isApplied()) {
+                        try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
+                    }
+                } else if (now - lastBarTickAt > 500L) {
+                    lastBarTickAt = now
+                    // ⚠️ R283：不要再静默吞异常 —— V2 的诊断日志一条都没出来，
+                    // 正是因为这个 catch 把所有异常都吃掉了。显式打出来。
+                    try {
+                        FloatingTabBarV2.ensure(activity, decor)
+                    } catch (t: Throwable) {
+                        ModuleLog.log("V2诊断异常: ${t.javaClass.simpleName}: ${t.message}")
+                    }
                 }
-                // ⛔⛔ R295（2026-10-24 收尾）：**彻底停用，回到原生底栏**。
-                // 今天在这个功能上从 07:00 做到 22:00，15 小时，反复失败：
-                //   · 重写 V2（6 轮）→ 完全失败，最后发现是异常被吞 + 颜色太淡
-                //   · 修复后主页面成功，但二级页残留（3 种页面判断全部失效）
-                //   · 回到旧版适配，逐个修 id：fkh/fkk（底色）、fkf（进度环）…
-                //     FILL_HOST_ID 改成 fke 后玻璃挂进播放钮，底栏变灰半透明 ← 更差
-                // 每次修一个 id 就引入一个新问题，因为没有系统的 5.3.1 底栏 id 对照表。
-                // 为保证交付可用版本，这里停用：
-                if (FloatingTabBar.isApplied()) {
-                    try { FloatingTabBar.restore() } catch (_: Throwable) {}
-                }
-                if (FloatingTabBarV2.isApplied()) {
-                    try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
-                }
-            } else if (FloatingTabBar.isApplied() || FloatingTabBarV2.isApplied()) {
-                try { FloatingTabBar.restore() } catch (_: Throwable) {}
+            } else if (FloatingTabBarV2.isApplied()) {
                 try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
             }
             val t0 = System.nanoTime()
@@ -2821,7 +2810,7 @@ object UiCleaner {
                 // 实测：底栏刚改造完 111ms 就被判定为"不在主页面"从而还原，
                 // 日志：discovery → frag:SupportRequestManagerFragment。
                 // 这些 Fragment 没有 UI，直接回流到主 pager 推断。
-                if (tag == "?") {
+                if (tag == "?" || INTERNAL_FRAGMENTS.any { tag.contains(it) }) {
                     // 主 pager：0=发现 / 1=我的
                     if (mainPageIndex < 0) "" else if (mainPageIndex == 1) "main" else "discovery"
                 } else when {
