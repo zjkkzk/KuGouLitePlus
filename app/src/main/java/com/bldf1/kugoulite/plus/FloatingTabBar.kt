@@ -211,7 +211,13 @@ internal object FloatingTabBar {
      * 的地方（录到的内容 alpha=0）就透出这层白 ⇒ 胶囊看着仍像原来的实色栏
      * （用户报「底栏还在渲染」）。处置见 [applyTo] ②c。
      */
-    private val HOST_FILL_IDS = arrayOf("fke")
+    // ⭐ R273（严重误伤修正）：5.3.0 的 fke 是宿主的 HnVisualEffectLayout 模糊容器，
+    // 5.3.1 里 **fke 变成了迷你播放钮的容器**(532,2457-688,2613)！
+    // 之前沿用 fke ⇒ 把播放钮设成 INVISIBLE ⇒ 用户实锤「少了中间按钮」。
+    // 5.3.1 真正的宿主底色层是底栏本体下的一对兄弟节点：
+    //   fv5 > fki(FrameLayout 全屏) > fkh > fkj(View)  ← 这层才是实心底
+    //   fv5 > asz(tab 容器) / fke(胶囊，**绝不能动**)
+    private val HOST_FILL_IDS = arrayOf("fki", "fkj")
 
     /** 一并清空 background 的容器（可能自带浅色底，一起交给玻璃负责） */
     private val BG_CLEAR_IDS = arrayOf("fv5", "fkf", "asz")
@@ -858,23 +864,30 @@ internal object FloatingTabBar {
             // 覆盖不到的地方（录到的内容 alpha=0）就透出这层白 ⇒ 胶囊看着仍像原来的实色栏。
             // 处置：`fke`/`fkg` 置 INVISIBLE（同尺寸，不影响布局），`fv2`/`fkf`/`asx` 的
             // background 一并清空 —— 胶囊的底色从此只由我们负责（关掉玻璃 = 真正透明）。
-            if (snap.hiddenFill.isEmpty()) {
-                for (name in HOST_FILL_IDS) {
-                    val v = findBarChild(bar, decor, activity, name) ?: continue
-                    snap.hiddenFill += v to v.visibility
+            // ⭐ R274（严重修正）：只有**我们自己的背景层成功挂上**时，才允许清宿主底色。
+            // 实锤：日志 glass=缺失 fallback=- （玻璃和实色兜底都没挂上），
+            // 但宿主底色照样被清了 ⇒ 底栏变成完全透明，内容直接透出来。
+            // 宁可保留宿主的白底（看起来是原生底栏），也不能让它全透。
+            val hasOurBacking = snap.fill != null || snap.fallback != null
+            if (hasOurBacking) {
+                if (snap.hiddenFill.isEmpty()) {
+                    for (name in HOST_FILL_IDS) {
+                        val v = findBarChild(bar, decor, activity, name) ?: continue
+                        snap.hiddenFill += v to v.visibility
+                    }
                 }
-            }
-            for ((v, _) in snap.hiddenFill) {
-                if (v.visibility != View.INVISIBLE) v.visibility = View.INVISIBLE
-            }
+                for ((v, _) in snap.hiddenFill) {
+                    if (v.visibility != View.INVISIBLE) v.visibility = View.INVISIBLE
+                }
 
-            if (snap.clearedBg.isEmpty()) {
-                for (name in BG_CLEAR_IDS) {
-                    val v = if (name == BAR_ID) bar else findBarChild(bar, decor, activity, name) ?: continue
-                    if (v.background != null) snap.clearedBg += v to v.background
+                if (snap.clearedBg.isEmpty()) {
+                    for (name in BG_CLEAR_IDS) {
+                        val v = if (name == BAR_ID) bar else findBarChild(bar, decor, activity, name) ?: continue
+                        if (v.background != null) snap.clearedBg += v to v.background
+                    }
                 }
+                for ((v, _) in snap.clearedBg) v.background = null
             }
-            for ((v, _) in snap.clearedBg) v.background = null
 
             // ---- ②d 让内容流到胶囊背后（Round 30）----
             // 宿主按「底栏占位高」(topMargin 18 + height 186 = 204) 给内容列表留了
