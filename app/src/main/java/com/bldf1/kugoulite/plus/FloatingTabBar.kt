@@ -153,7 +153,12 @@ internal object FloatingTabBar {
     // 胶囊几何（dp）
     private const val SIDE_MARGIN_DP = 16
     private const val CAPSULE_HEIGHT_DP = 62
-    private const val TOP_MARGIN_DP = 6
+    // ⭐ R308（5.3.1 几何校正）：5.3.0 的底栏高度和胶囊几乎一样，top=6dp 正好。
+    // 5.3.1 的 fv5 高 270px（2442~2712），胶囊 186px，若仍留 top=18px ⇒ 胶囊落在
+    // 2460~2646，而播放钮在 2457~2613、tab 文字到 2599
+    // ⇒ 胶囊下边缘比内容低 33~47px，用户看到底栏太低、图标没居中。
+    // 改为 0：胶囊 2442~2628，中心 2535 = 播放钮中心，上下各留 15px。
+    private const val TOP_MARGIN_DP = 0
     private const val ELEVATION_DP = 6
 
     /**
@@ -200,8 +205,13 @@ internal object FloatingTabBar {
     private const val BAR_ID = "fv5"
 
     /** 需要与本体同步收缩高度的子视图（定高，不缩会被居中溢出裁切） */
-    // ⚠️ 5.3.1 的 fkf 是播放钮的**进度环 CircleProgressBar**，绝不能收缩（会压扁进度环）
-    private val SHRINK_IDS = arrayOf("asz")
+    // ⭐ R309（5.3.1）：**一个都不能压**。
+    // 5.3.0 的 asx/fkf 本来就是 186 高，压到 62dp 正好；
+    // 5.3.1 的 asz 是 270 高（tab 容器，内含发现/我的 + 播放钮），
+    // 压到 186 会把内部**垂直居中布局的图标/播放钮全部压扁**：
+    //   实测 fke 播放钮 156px → 89px，tab 图标错位 ⇒ 用户看到"图标没居中"。
+    // fv5 自己已经是 186px 高且 clipToOutline，超出部分自然被裁，无需压子视图。
+    private val SHRINK_IDS = arrayOf<String>()
 
     /**
      * 宿主自带的胶囊底色层（Round 29）。
@@ -832,7 +842,13 @@ internal object FloatingTabBar {
             }
             fresh.leftMargin = side
             fresh.rightMargin = side
-            fresh.height = height
+            // R310（5.3.1 关键）：不改 bar 的高度。
+            // 5.3.0 的底栏本体高度约等于胶囊高度，压到 62dp 后内容刚好；
+            // 5.3.1 的 fv5 是 270px，而 tab / 播放钮按 270px 垂直居中布局 ——
+            // 压到 186px 后：图标被裁成 29px（原 71）、播放钮被压成 89px（原 156），
+            // 用户看到的就是「图标没居中 + 底栏太低」。
+            // 正解：本体保持原高，只在垂直居中的 186px 区域画胶囊（见 outlineProvider）。
+            fresh.height = snap.barLp?.height ?: ViewGroup.LayoutParams.MATCH_PARENT
             bar.layoutParams = fresh
 
             // R92：胶囊区域消费触摸，阻止事件穿透到底下的 feed/卡片
@@ -842,10 +858,19 @@ internal object FloatingTabBar {
 
             bar.outlineProvider = object : ViewOutlineProvider() {
                 override fun getOutline(view: View, outline: Outline) {
-                    outline.setRoundRect(0, 0, view.width, view.height, radius)
+                    // R312：胶囊**顶部对齐本体顶部**，不是居中。
+                    // 实测（1220x2712，5.3.1）：fv5 = 2442~2712（270px），
+                    //   播放钮 fke 2457~2613（中心 2535）、tab 图标 2478~2553、
+                    //   tab 文字 2562~2599  —— 内容整体偏上，底部留 113px 空。
+                    // 若胶囊居中（2484~2670）会整体比内容低 42px ⇒ 用户看到"太低"。
+                    // 顶对齐后胶囊 2442~2628，中心 2535 = 播放钮中心，上下各留 15px。
+                    val ct = 0
+                    outline.setRoundRect(0, ct, view.width, ct + height, radius)
                 }
             }
-            bar.clipToOutline = true
+            // 不能 clipToOutline：本体高于胶囊时会把 tab 图标 / 播放钮裁掉
+            //（实测 at1 图标 71px 变 29px、fke 播放钮 156px 变 89px）
+            bar.clipToOutline = false
             // elevation 必须在本体上：阴影由父容器 fb15e4d(1220x270) 绘制，余量够；
             // 放到子视图上会被本体的 clipChildren 裁掉。
             bar.elevation = ELEVATION_DP * density
@@ -926,13 +951,23 @@ internal object FloatingTabBar {
                 val glass = snap.fill as LiquidGlass
                 if (glass.parent !== glassHost) {
                     (glass.parent as? ViewGroup)?.removeView(glass)
+                    // R311（5.3.1）：玻璃层只能占**胶囊那 186px**，不能铺满整个本体。
+                    // 5.3.0 的 fkf 本身就是胶囊大小，MATCH_PARENT 刚好；
+                    // 5.3.1 的 fv5 是 270px（保持原高不改），玻璃必须收成 186px 并垂直居中，
+                    // 否则视觉上胶囊会盖住整条底栏（用户看到"胶囊太高/位置不对"）。
+                    val hostH = if (glassHost.height > 0) glassHost.height else bar.height
+                    val capsuleH = (CAPSULE_HEIGHT_DP * activity.resources.displayMetrics.density).toInt()
+                    // 顶对齐（同 outline：内容在底栏里偏上，居中会让胶囊比内容低 42px）
+                    val capTop = 0
                     glassHost.addView(
                         glass,
                         FILL_INSERT_INDEX.coerceAtMost(glassHost.childCount),
                         FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                        ),
+                            capsuleH,
+                        ).apply {
+                            topMargin = capTop
+                        },
                     )
                 }
                 glass.init(contentRoot)
