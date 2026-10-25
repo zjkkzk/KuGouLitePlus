@@ -2403,6 +2403,29 @@ object UiCleaner {
             // 而下一个 item 的 y 从 2377 变成 2337（上移 40px，说明收过一次）。
             // ⇒ 宿主 presenter 在 bind 时重设了 LayoutParams.height = WRAP_CONTENT。
             // 与 hiddenByUs 同一思路：每帧钉一次。成本 = 列表长度（通常 1~2 项）。
+            // ⭐ R306：每帧直接处理空区块（用缓存引用，成本≈0），不依赖 scan 是否遍历到 b7g
+            try {
+                val ctxP = currentActivity?.get()
+                if (ctxP != null && !ctxP.isFinishing && !ctxP.isDestroyed &&
+                    Settings.isFeature(ctxP, Settings.KEY_UI_EMPTY_BLOCK)
+                ) {
+                    val nowP = android.os.SystemClock.uptimeMillis()
+                    var rvP: ViewGroup? = b7gCache
+                    if (rvP != null && !rvP.isAttachedToWindow) rvP = null
+                    if (rvP == null && nowP - lastB7gSeekAt > 200L) {
+                        lastB7gSeekAt = nowP
+                        val d = ctxP.window?.decorView
+                        if (d != null) {
+                            val found = findOnScreenView(d, "b7g")
+                            if (found is ViewGroup) {
+                                rvP = found
+                                b7gCache = found
+                            }
+                        }
+                    }
+                    rvP?.let { collapseEmptyFeedBlockFast(it, ctxP) }
+                }
+            } catch (_: Throwable) {}
             if (collapsedEmptyItems.isNotEmpty()) {
                 val itr = collapsedEmptyItems.iterator()
                 while (itr.hasNext()) {
@@ -4530,6 +4553,18 @@ object UiCleaner {
      * 成本 = 比较 4~10 个 int，可忽略；且我们收缩后签名自然更新，不会循环。
      */
     @Volatile private var emptyBlockLastSig: IntArray = IntArray(0)
+
+    /**
+     * ⭐ R306：b7g（发现页主列表）的引用缓存。
+     *
+     * 为什么需要：原来只在 scan() 里处理空区块，实测冷启动有空档出现后**过 30 帧（1 秒）**
+     * 才被收缩（60fps 录屏逐帧量化：帧 160~190 连续空白 560px）。
+     * 说明那 1 秒内 scan 根本没遍历到 b7g —— 要么 preDraw 窗口期已过、要么 scan 提前返回。
+     * 改为在 preDrawListener 里直接用缓存引用调处理函数（每帧执行），
+     * 只在引用失效时才重新全树查找，并用 [lastB7gSeekAt] 限流（200ms 最多找一次）。
+     */
+    private var b7gCache: ViewGroup? = null
+    private var lastB7gSeekAt: Long = 0L
 
     /**
      * ⭐ R302：绘制前版本的「空区块收缩」——**每帧跑，只遍历 b7g 的直接子项**。
