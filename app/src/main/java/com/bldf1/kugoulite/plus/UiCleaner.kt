@@ -1269,7 +1269,11 @@ object UiCleaner {
         // ⇒ 会被预筛直接 return ⇒ 「TAB角标」规则永远跑不到（用户实锤：底部红点 15 不消失）。
         // 对 at5/at4 这两个角标 ID 按 ID 快判，跳过文本预筛。
         val __rnTab = resourceName(v)
-        val __tabBadge = (__rnTab == "at5" || __rnTab == "at4") &&
+        // R313（5.3.1）：at5 从「红点数字」变成了**「我的」文字**、at4 变成了**图标**
+        // ⇒ 绝不能再把它们当角标快判（否则跳过文本预筛后会走到下面的 GONE 分支，
+        //    把「我的」文字整条隐藏 —— 用户实锤：切到我的页后「我的」两个字消失）。
+        // 5.3.1 的角标容器是 at8（FrameLayout 含红点图）。
+        val __tabBadge = (__rnTab == "at8" || __rnTab == "at6" || __rnTab == "at7") &&
             Settings.isFeature(v.context, Settings.KEY_UI_TAB_BADGE)
         if (!__tabBadge && t.isNotEmpty() && !mayBePromo(t)) return
 
@@ -1280,7 +1284,10 @@ object UiCleaner {
         // 父容器可能是 at6（红点）或 at7（文字标签）—— 两者都整体 GONE。
         if (Settings.isFeature(v.context, Settings.KEY_UI_TAB_BADGE) && !isOwn) {
             val rn = resourceName(v)
-            if (rn == "at5" || rn == "at4") {
+            // R313：只按「角标容器」判定。5.3.0 的 at5(数字)/at4(文字标签) 在 5.3.1 已经
+            // 变成「我的」文字和图标，不再承载推广角标 ⇒ 从判断里剔除，
+            // 否则会把 tab 文字隐藏（用户实锤）。
+            if (rn == "at6" || rn == "at7") {
                 val parent = v.parent as? View
                 val pn = parent?.let { resourceName(it) }
                 if (parent != null && (pn == "at6" || pn == "at7")) {
