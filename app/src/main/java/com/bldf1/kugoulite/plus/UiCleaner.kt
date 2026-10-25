@@ -299,8 +299,13 @@ object UiCleaner {
         // R227：补类名兜底 —— 广告本体是 CommentGDTAdsView（广点通 SDK 专属 View），
         // 用类名匹配比连父层数稳定（宿主改层级也不怕）。
         // 日志实证：隐藏 CommentGDTAdsView 已绘制=否 0x0（布局前就 GONE，零闪现）。
+        // R315：补类名 TMENativeAdContainer（腾讯广告 SDK 容器）。
+        // flashscan 2 轮各 1 条真闪现（严格=是 / 已绘制=是 / alpha=1.0）：
+        //   UI净化[搜索推广卡片] 隐藏: TMENativeAdContainer id=dw sz=1112x417
+        // 它是靠 idNames=i4z + hideParentLevels=3「爬父」才被藏到的，
+        // 爬到它时已经上过屏 ⇒ 闪一下。类名直接命中就能在创建时藏掉。
         Rule(Settings.KEY_UI_SEARCH_AD, "搜索推广卡片",
-            listOf("GDTAds"), listOf(),
+            listOf("GDTAds", "TMENativeAdContainer"), listOf(),
             idNames = listOf("i4z"), hideParentLevels = 3),
         Rule(Settings.KEY_UI_SEARCH_AD, "搜索推广",
             listOf("SearchAd", "SearchPromo"), listOf("广告", "推广"),

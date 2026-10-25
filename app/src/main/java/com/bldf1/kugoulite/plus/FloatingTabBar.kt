@@ -548,7 +548,8 @@ internal object FloatingTabBar {
      */
     private fun geometryBrokenFast(snap: Snapshot): Boolean {
         val bar = snap.bar ?: return true
-        if (bar.height != snap.appliedHeight) return true
+        // appliedHeight<=0 表示我们不接管本体高度（5.3.1 只画居中胶囊轮廓），跳过校验
+        if (snap.appliedHeight > 0 && bar.height != snap.appliedHeight) return true
         if (snap.fill?.parent !== snap.fillHost) return true
         // Round 45：玻璃挂不上时必须有实色兜底层（挂载掉了 / 背景被清 = 胶囊又变透明）
         if (snap.fill == null && snap.fallbackHost != null) {
@@ -982,7 +983,12 @@ internal object FloatingTabBar {
                 attachFallbackFill(snap, fillHost, activity)
             }
 
-            snap.appliedHeight = height
+            // R314（5.3.1）：5.3.0 这里记的是胶囊高度（62dp），因为那时会把本体压成胶囊高。
+            // 5.3.1 改成**不改本体高度**（只画居中的 186px 胶囊轮廓），
+            // 若仍记 186 就与实测的 270 永久不等 ⇒ geometryBrokenFast 每帧判坏
+            // ⇒ 反复重新施加 ⇒ "自愈熔断：连续 5 次重新施加仍不合规"（日志实锤）。
+            // 记 0 表示「本体的高度不由我们管」，几何校验跳过这一项。
+            snap.appliedHeight = 0
             snap.activityRef = WeakReference(activity)
             snap.decorRef = WeakReference(decor)
             snap.applyCount++
