@@ -192,13 +192,16 @@ internal object FloatingTabBar {
     private const val GLASS_RECORD_INTERVAL_MS = 16L
 
     // 锚点链：at0(发现文字) → asy(发现tab) → asx(tab容器) → fv2(底栏本体)
-    private val CHAIN = arrayOf("at0", "asy", "asx", "fv2")
+    // ⭐ R307（5.3.1 适配，**只换 id 不改逻辑**）：旧链 at0→asy→asx→fv2 里的
+    // asy/asx/fv2 在 5.3.1 全部不存在。实测层级：at0(tab) → asz(tab容器) → fv5(底栏本体)。
+    private val CHAIN = arrayOf("at0", "asz", "fv5")
 
     /** 底栏本体 ID（= CHAIN 末级） */
-    private const val BAR_ID = "fv2"
+    private const val BAR_ID = "fv5"
 
     /** 需要与本体同步收缩高度的子视图（定高，不缩会被居中溢出裁切） */
-    private val SHRINK_IDS = arrayOf("asx", "fkf")
+    // ⚠️ 5.3.1 的 fkf 是播放钮的**进度环 CircleProgressBar**，绝不能收缩（会压扁进度环）
+    private val SHRINK_IDS = arrayOf("asz")
 
     /**
      * 宿主自带的胶囊底色层（Round 29）。
@@ -208,10 +211,12 @@ internal object FloatingTabBar {
      * 的地方（录到的内容 alpha=0）就透出这层白 ⇒ 胶囊看着仍像原来的实色栏
      * （用户报「底栏还在渲染」）。处置见 [applyTo] ②c。
      */
-    private val HOST_FILL_IDS = arrayOf("fke", "fkg")
+    // ⚠️ 5.3.1 的 fke 是**胶囊容器(播放钮)**，不是 5.3.0 那个模糊容器，绝不能隐藏！
+    // 实测底色层是：fki > fkh(HnVisualEffectLayout) 和 fv5 > fkk(NinePatchDrawable 顶线)
+    private val HOST_FILL_IDS = arrayOf("fkh", "fkk")
 
     /** 一并清空 background 的容器（可能自带浅色底，一起交给玻璃负责） */
-    private val BG_CLEAR_IDS = arrayOf("fv2", "fkf", "asx")
+    private val BG_CLEAR_IDS = arrayOf("fv5", "asz", "fkk")
 
     /** 内容根里滚动容器的类名片段（关掉它们的 clipToPadding，让内容流到胶囊背后） */
     private val SCROLL_CLASS_HINTS = arrayOf("RecyclerView", "ScrollView", "ListView", "ScrollLayout")
@@ -270,7 +275,18 @@ internal object FloatingTabBar {
     private const val DIAG_BAR_FILL = false
 
     /** 胶囊填充层挂载点（毛玻璃包装 FrameLayout） */
-    private const val FILL_HOST_ID = "fkf"
+    // ⭐ R307：5.3.1 的 fkf 是播放钮的进度环（CircleProgressBar），不是胶囊底板。
+    // 玻璃要铺满胶囊 ⇒ 挂到 fv5（底栏本体，会被改成 186px 高 × 全宽 = 正好是胶囊）。
+    private const val FILL_HOST_ID = "fv5"
+
+    /**
+     * 玻璃层插入到宿主的第几个位置。
+     *
+     * 5.3.0 的 fkf 里只有我们自己的填充层，加在末尾无所谓；
+     * 5.3.1 的 fv5 里**还有 tab 和播放钮**，加在末尾会盖住它们
+     * ⇒ 必须插到 **0（最底层）**，让 asz(tab) / fke(播放钮) 自然叠在上面。
+     */
+    private const val FILL_INSERT_INDEX = 0
 
     // ===== Round 45：关玻璃实色兜底 + push 页隐藏 =====
 
@@ -912,6 +928,7 @@ internal object FloatingTabBar {
                     (glass.parent as? ViewGroup)?.removeView(glass)
                     glassHost.addView(
                         glass,
+                        FILL_INSERT_INDEX.coerceAtMost(glassHost.childCount),
                         FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT,

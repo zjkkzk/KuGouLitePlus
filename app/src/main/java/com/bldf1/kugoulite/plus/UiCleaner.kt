@@ -1436,27 +1436,29 @@ object UiCleaner {
                     barPageLogedFor = curPageId + onMainPage.toString()
                     ModuleLog.log("R271 底栏页面判定 curPageId=$curPageId onMain=$onMainPage")
                 }
-                // ⭐ R279：改用**独立 overlay 方案**（FloatingTabBarV2）。
-                // 旧 FloatingTabBar 会在宿主底栏上直接改 LayoutParams/visibility/background，
-                // 而 5.3.1 的宿主复用了同一个 View 实例给「迷你播放条」⇒ 改造残留会改坏它。
-                // V2 只读宿主几何、只改 alpha（幂等），自己叠一层胶囊，零污染。
-                // ⭐ R282：带诊断重新启用。这次 addView 后会打日志验证
-                // parent/attached/size/globalVisible，先确认视图真的进了绘制树。
-                if (!onMainPage) {
-                    if (FloatingTabBarV2.isApplied()) {
-                        try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
-                    }
-                } else if (now - lastBarTickAt > 500L) {
+                // ⭐ R307（按用户要求：**基于旧版适配，只换 id，逻辑不动**）
+                // 旧版 FloatingTabBar 的完整能力全部保留：
+                //   · overlayCovering / branchKind —— 二级页判断（搜索页/播放页/最近播放）
+                //   · attachHealWatch —— 逐帧自愈（宿主还原几何时自动纠正）
+                //   · verify() 4s 存活校验
+                //   · 玻璃链路（LiquidGlass + 实色兜底）
+                //   · 62dp 胶囊尺寸 / 16dp 侧边距 / 6dp 顶部距
+                // 本次只把 5.3.0 的 id 换成 5.3.1 实测值，没有重写任何逻辑。
+                if (FloatingTabBarV2.isApplied()) {
+                    try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
+                }
+                val due = now - lastBarTickAt > (if (FloatingTabBar.isApplied()) 4000L else 500L)
+                if (due) {
                     lastBarTickAt = now
-                    // ⚠️ R283：不要再静默吞异常 —— V2 的诊断日志一条都没出来，
-                    // 正是因为这个 catch 把所有异常都吃掉了。显式打出来。
                     try {
-                        FloatingTabBarV2.ensure(activity, decor)
+                        if (FloatingTabBar.isApplied()) FloatingTabBar.verify()
+                        else FloatingTabBar.ensure(activity, decor)
                     } catch (t: Throwable) {
-                        ModuleLog.log("V2诊断异常: ${t.javaClass.simpleName}: ${t.message}")
+                        ModuleLog.log("悬浮底栏异常: ${t.javaClass.simpleName}: ${t.message}")
                     }
                 }
-            } else if (FloatingTabBarV2.isApplied()) {
+            } else if (FloatingTabBar.isApplied() || FloatingTabBarV2.isApplied()) {
+                try { FloatingTabBar.restore() } catch (_: Throwable) {}
                 try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
             }
             val t0 = System.nanoTime()
