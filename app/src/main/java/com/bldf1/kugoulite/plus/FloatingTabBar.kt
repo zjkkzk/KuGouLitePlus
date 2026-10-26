@@ -334,6 +334,12 @@ internal object FloatingTabBar {
     private class Snapshot {
         var bar: View? = null
         var barLp: FrameLayout.LayoutParams? = null
+
+        /** R338：fv5 原始父容器/位置 —— 宿主（原生二级页）或玻璃切换 rescan 会把它
+         *  从树上摘掉；摘掉后 findViewById 找不到 ⇒ 死局（胶囊永远回不来）。
+         *  首次 apply 时记下，之后每帧发现 parent==null 就主动 addView 放回。 */
+        var barOrigParent: java.lang.ref.WeakReference<ViewGroup>? = null
+        var barOrigIndex: Int = -1
         var barOutline: ViewOutlineProvider? = null
         var barClip: Boolean = false
         var barElevation: Float = 0f
@@ -804,6 +810,31 @@ internal object FloatingTabBar {
     }
 
     private fun applyTo(bar: View, decor: View, activity: Activity) {
+        // ⭐⭐ R338：fv5 被宿主从树上摘掉（原生二级页"没有底栏"的实现机制就是直接
+        // removeView；玻璃关闭触发 rescan/restore 后也可能停在摘出状态）。
+        // 摘掉后 findViewById 找不到它 ⇒ 死局。发现 parent==null 就放回原位。
+        if (bar.parent == null) {
+            val op = snapshot?.barOrigParent?.get()
+            val idx = snapshot?.barOrigIndex ?: -1
+            val olp = snapshot?.barLp
+            if (op != null && idx >= 0 && olp != null) {
+                try {
+                    op.addView(bar, idx.coerceAtMost(op.childCount), olp)
+                    ModuleLog.log("R338 fv5 已被宿主摘出，已放回原位 parent=" + resourceName(op))
+                } catch (t: Throwable) {
+                    ModuleLog.log("R338 放回失败: " + t.javaClass.simpleName)
+                }
+            }
+        } else {
+            // 在树上 ⇒ 记录原始父容器与位置（只记一次）
+            val sn = snapshot
+            if (sn != null && sn.barOrigParent == null) {
+                (bar.parent as? ViewGroup)?.let { par ->
+                    sn.barOrigParent = java.lang.ref.WeakReference(par)
+                    sn.barOrigIndex = par.indexOfChild(bar)
+                }
+            }
+        }
         val lp = bar.layoutParams
         if (lp !is FrameLayout.LayoutParams) {
             log { "底栏本体 LayoutParams 不是 FrameLayout 的（${lp?.javaClass?.name}），放弃" }
