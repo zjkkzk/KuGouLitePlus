@@ -89,6 +89,8 @@ object Settings {
     const val KEY_UI_FLOATING_BAR = "ui_floating_bar"
     /** 胶囊填充层改用液态玻璃材质（Round 28，API 33+；关掉则胶囊不含填充层） */
     const val KEY_UI_LIQUID_GLASS = "ui_liquid_glass"
+    /** R336：二级页隐藏音乐转盘（默认关；关闭时悬浮胶囊和转盘一起显示在二级界面） */
+    const val KEY_UI_SUBPAGE_WHEEL_HIDE = "ui_subpage_wheel_hide"
 
     // ===== 防检测 =====
     const val KEY_BYPASS_SIGNATURE = "bypass_signature"

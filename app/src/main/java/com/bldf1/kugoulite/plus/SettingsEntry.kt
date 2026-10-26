@@ -641,6 +641,10 @@ object SettingsEntry {
                         Settings.KEY_UI_LIQUID_GLASS, "液态玻璃底栏",
                         "胶囊内填充液态玻璃材质（实时折射背景，Android 13+）"
                     ),
+                    row(
+                        Settings.KEY_UI_SUBPAGE_WHEEL_HIDE, "二级页隐藏音乐转盘",
+                        "开启后二级界面不再显示音乐转盘；关闭后悬浮胶囊会和音乐转盘一起显示在二级界面"
+                    ),
                 )
             ),
             ToggleSection(
