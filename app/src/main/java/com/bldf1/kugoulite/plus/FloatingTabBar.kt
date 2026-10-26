@@ -383,12 +383,6 @@ internal object FloatingTabBar {
     @Volatile
     var pageId: String = ""
 
-    /**
-     * R327：有转盘的二级页 id 集合（与 UiCleaner.SECONDARY_PAGE_IDS 保持一致）。
-     * 这些页面 curPageId 不带 frag: 前缀，但同样是"只留转盘"的目标页面。
-     */
-    private val SECONDARY_PAGE_IDS = setOf("fav", "recent", "local", "bought", "profile")
-
     @Volatile
     private var applied = false
 
@@ -1232,13 +1226,11 @@ internal object FloatingTabBar {
         // ⭐⭐ R326：5.3.1 里 FragmentStackView 的 id `ajd` **已不存在**（dump 实测），
         // 所以 findFragmentStack 永远返回 null ⇒ 原来 `?: return` 让整段逻辑从未执行
         // （这也是之前所有改动"日志里什么都没有"的原因）。
-        // R327：二级页判定除了 frag: 前缀，还要覆盖 fav/recent/local/bought/profile
-        //（这些页面没有 frag: 前缀，但同样是"有转盘的二级页"——
-        //  用户实锤：最近播放页胶囊还在，只要求留转盘）
+        // 改用 pageId 的 frag: 前缀判定二级页；stack 拿不到就跳过"栈顶类名"那一步。
         val stack = findFragmentStack(snap)
-        val cover = pageId.startsWith("frag:") ||
-            pageId in SECONDARY_PAGE_IDS ||
-            (stack != null && overlayCovering(stack))
+        val cover = if (pageId.startsWith("frag:")) true
+                    else if (stack != null) overlayCovering(stack)
+                    else false
         // R198（方案A：保持原生）：二级页**不再隐藏胶囊**。
         // 原生状态下二级页底部本来就带完整胶囊（发现 + 转盘 + 我的），
         // 我们之前"隐藏胶囊 + 把转盘摘到 DecorView 重新定位"属于多余改造，
@@ -1260,11 +1252,6 @@ internal object FloatingTabBar {
             lastTopRef = null
             // ⭐ R326：回到主页必须把本体点亮 —— 二级页时它被设成 INVISIBLE 了。
             if (bar.visibility != View.VISIBLE) bar.visibility = View.VISIBLE
-            try {
-                (bar.parent?.parent as? ViewGroup)?.let { gp ->
-                    if (gp.visibility != View.VISIBLE) gp.visibility = View.VISIBLE
-                }
-            } catch (_: Throwable) {}
             return
         }
         // R326：恢复「二级页把转盘摘到 DecorView」（R198 用 return 短路了这段）。
@@ -1300,18 +1287,6 @@ internal object FloatingTabBar {
         // R326：二级页只留中间那颗转盘 —— 转盘摘出后把本体藏掉（原生也是如此）。
         // 播放页（FragmentViewPlayer3）有全屏大唱片，转盘已 reattach，本体同样藏。
         if (bar.visibility != View.INVISIBLE) bar.visibility = View.INVISIBLE
-        // R328（修正）：dump 实测 fki 是 fv5 的**子**（之前"平级"是误读——它占满 fv5）。
-        // 白底真正来自 fv5 的**祖父**：祖父有两个子——[0] 全屏内容层、[1] 底栏承载层
-        // (0,2442,1220,2712)。原生二级页宿主会把整个承载层藏掉（只剩摘出的转盘），
-        // 我们的改造破坏了这个机制 ⇒ 二级页要自己把承载层藏掉。
-        try {
-            (bar.parent?.parent as? ViewGroup)?.let { gp ->
-                if (gp.visibility != View.INVISIBLE) {
-                    gp.visibility = View.INVISIBLE
-                    ModuleLog.log("R328 藏底栏承载层（fv5 的祖父）")
-                }
-            }
-        } catch (_: Throwable) {}
         log(always = true) { "二级页：藏底栏，只留转盘" }
     }
 
