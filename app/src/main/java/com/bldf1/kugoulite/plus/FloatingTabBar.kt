@@ -379,6 +379,10 @@ internal object FloatingTabBar {
         var applyCount: Int = 0
     }
 
+    /** R326：当前页面 id（UiCleaner 每次扫描写入）。frag: 前缀 = 二级页 */
+    @Volatile
+    var pageId: String = ""
+
     @Volatile
     private var applied = false
 
@@ -1147,8 +1151,10 @@ internal object FloatingTabBar {
         val dv = decor as? ViewGroup ?: return false
         detachedWheel?.let { if (it.parent === dv) return true }
 
-        val wheel = try { findBarChild(bar, decor, act, "fkb") } catch (_: Throwable) { null }
-            ?: return false
+        // R326：5.3.1 的转盘在 fke(RelativeLayout 156x156) 里；5.3.0 的 fkb 现在是 Space。
+        val wheel = try {
+            findBarChild(bar, decor, act, "fke") ?: findBarChild(bar, decor, act, "fkb")
+        } catch (_: Throwable) { null } ?: return false
         // ⭐ R117：转盘显隐**由宿主决定** —— 宿主没设 VISIBLE（如某些页面设 GONE）就不摘
         if (wheel.visibility != View.VISIBLE) return false
         val hostVis = wheel.visibility
@@ -1217,17 +1223,22 @@ internal object FloatingTabBar {
      */
     private fun updateOverlayHidden(snap: Snapshot) {
         val bar = snap.bar ?: return
-        val stack = findFragmentStack(snap) ?: return
-        val cover = overlayCovering(stack)
+        // ⭐⭐ R326：5.3.1 里 FragmentStackView 的 id `ajd` **已不存在**（dump 实测），
+        // 所以 findFragmentStack 永远返回 null ⇒ 原来 `?: return` 让整段逻辑从未执行
+        // （这也是之前所有改动"日志里什么都没有"的原因）。
+        // 改用 pageId 的 frag: 前缀判定二级页；stack 拿不到就跳过"栈顶类名"那一步。
+        val stack = findFragmentStack(snap)
+        val cover = if (pageId.startsWith("frag:")) true
+                    else if (stack != null) overlayCovering(stack)
+                    else false
         // R198（方案A：保持原生）：二级页**不再隐藏胶囊**。
         // 原生状态下二级页底部本来就带完整胶囊（发现 + 转盘 + 我的），
         // 我们之前"隐藏胶囊 + 把转盘摘到 DecorView 重新定位"属于多余改造，
         // 导致转盘位置永远对不上（68dp 偏低、33dp 偏高，只能靠猜）。
         if (cover != overlayHidden) {
             overlayHidden = cover
-            bar.visibility = View.VISIBLE
             log(always = true) {
-                if (cover) "二级页盖顶：胶囊保持显示(方案A)" else "回到主页：恢复胶囊"
+                if (cover) "二级页盖顶：准备只留转盘" else "回到主页：恢复胶囊"
             }
         }
 
@@ -1239,15 +1250,17 @@ internal object FloatingTabBar {
             inSearchFlow = false
             if (detachedWheel != null) reattachWheel(snap)
             lastTopRef = null
+            // ⭐ R326：回到主页必须把本体点亮 —— 二级页时它被设成 INVISIBLE 了。
+            if (bar.visibility != View.VISIBLE) bar.visibility = View.VISIBLE
             return
         }
-        // R198（方案A）：二级页不再把转盘摘到 DecorView —— 胶囊仍在，
-        // 转盘留在原位即为原生位置。若之前摘过，先装回去。
-        if (detachedWheel != null) reattachWheel(snap)
-        lastTopRef = null
-        return
-        val top = topPushContainer(stack)
-        if (top === lastTopRef?.get()) return
+        // R326：恢复「二级页把转盘摘到 DecorView」（R198 用 return 短路了这段）。
+        // stack 可能为 null（5.3.1 的 ajd 不存在）⇒ 跳过栈顶判定，直接按 cover 处理。
+        val top = stack?.let { topPushContainer(it) }
+        if (stack != null && top === lastTopRef?.get() && detachedWheel != null) {
+            if (bar.visibility != View.INVISIBLE) bar.visibility = View.INVISIBLE
+            return
+        }
         val topName = top?.javaClass?.simpleName ?: "?"
         val wr = top?.let { java.lang.ref.WeakReference(it) }
         // ⭐ R119：范围放宽 —— **任何二级页都显示转盘**（不只是搜索流程内），
@@ -1271,6 +1284,10 @@ internal object FloatingTabBar {
                 log(always = true) { "栈顶=$topName → 转盘在顶层" }
             }
         }
+        // R326：二级页只留中间那颗转盘 —— 转盘摘出后把本体藏掉（原生也是如此）。
+        // 播放页（FragmentViewPlayer3）有全屏大唱片，转盘已 reattach，本体同样藏。
+        if (bar.visibility != View.INVISIBLE) bar.visibility = View.INVISIBLE
+        log(always = true) { "二级页：藏底栏，只留转盘" }
     }
 
     /** FragmentStackView 的宿主资源 ID 名（真机 dump 实锤：app:id/ajd） */

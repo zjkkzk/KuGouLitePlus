@@ -1406,6 +1406,7 @@ object UiCleaner {
             if (activity.isFinishing || activity.isDestroyed) return
             // ⭐ R168：更新当前页面 id（供规则页面归属筛选）
             curPageId = computePageId(activity)
+            FloatingTabBar.pageId = curPageId   // R326：供底栏判定二级页
             // ⭐ R262：设置页整页跳过扫描（含周期性全树扫描），彻底断掉滑动闪烁
             activity.window?.decorView?.let { if (isInSettingsPage(it)) return }
             // ⭐ R167：收藏/最近/本地/已购/个人主页 无净化目标，整页跳过
