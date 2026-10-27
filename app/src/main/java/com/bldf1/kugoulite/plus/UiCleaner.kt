@@ -1395,6 +1395,38 @@ object UiCleaner {
     // 悬浮底栏扫描节流时间戳
     private var lastBarTickAt = 0L
 
+    /** R342：常驻页面监视 —— fragment 切换（二级页↔主页）不触发 onResume，
+     *  而 attachPreDrawScan 只在 resume 后的时间窗内有效 ⇒ 返回时没有任何扫描，
+     *  胶囊要等 5 秒才被某次偶然扫描抓到。这里用常驻 preDraw 做**轻量**检测：
+     *  100ms 一次算 pageId，变了就立刻 safeScan。 */
+    private var lastPageWatchAt = 0L
+    private val pageWatchDecor = java.util.Collections.newSetFromMap(
+        java.util.WeakHashMap<View, Boolean>()
+    )
+
+    private val pageWatchListener = android.view.ViewTreeObserver.OnPreDrawListener {
+        var ok = true
+        try {
+            val now = android.os.SystemClock.uptimeMillis()
+            if (now - lastPageWatchAt > 100L) {
+                lastPageWatchAt = now
+                // 从任意已知 decor 反推 activity 太重，这里用当前扫描记录的活动引用
+                val act = lastActivityRef?.get()
+                if (act != null && !act.isFinishing && !act.isDestroyed) {
+                    val pid = computePageId(act)
+                    if (pid != curPageId) {
+                        mainHandler.post { safeScan(act) }
+                    }
+                }
+            }
+        } catch (_: Throwable) {
+        }
+        ok
+    }
+
+    @Volatile
+    private var lastActivityRef: java.lang.ref.WeakReference<Activity>? = null
+
     /** R341：上一次的底栏页面键（pageId + onMain）。
      *  页面一变就立刻 ensure/verify，不再等 500ms 扫描周期 ——
      *  修「从二级页返回发现页，胶囊要 1 秒才出现」。 */
@@ -1412,6 +1444,20 @@ object UiCleaner {
             // ⭐ R168：更新当前页面 id（供规则页面归属筛选）
             curPageId = computePageId(activity)
             FloatingTabBar.pageId = curPageId   // R326：供底栏判定二级页
+            // R342：记录活动引用并确保常驻页面监视挂在当前 decor 上
+            lastActivityRef = java.lang.ref.WeakReference(activity)
+            try {
+                activity.window?.decorView?.let { dv ->
+                    if (!pageWatchDecor.contains(dv)) {
+                        val vto = dv.viewTreeObserver
+                        if (vto.isAlive) {
+                            vto.addOnPreDrawListener(pageWatchListener)
+                            pageWatchDecor.add(dv)
+                            ModuleLog.log("R342 常驻页面监视已挂载")
+                        }
+                    }
+                }
+            } catch (_: Throwable) {}
             // ⭐ R262：设置页整页跳过扫描（含周期性全树扫描），彻底断掉滑动闪烁
             activity.window?.decorView?.let { if (isInSettingsPage(it)) return }
             // ⭐ R167：收藏/最近/本地/已购/个人主页 无净化目标，整页跳过
