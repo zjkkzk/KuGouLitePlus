@@ -1433,8 +1433,10 @@ object UiCleaner {
                 }
             }
             // 悬浮底栏（Round 24）：未改造时 500ms 一次尝试定位；已改造则 4s 一次存活校验。
-            // 关掉开关立即还原宿主原样。
-            if (Settings.isFeature(activity, Settings.KEY_UI_FLOATING_BAR)) {
+            // ⭐ R340（用户要求）：面板里「悬浮底栏」开关已移除，只保留「液态玻璃悬浮底栏」。
+            // 悬浮胶囊恒开启 —— 原来"关掉就 restore 回原生平底"那条路径会让宿主把 fv5
+            // 摘出视图树，正是 R338 修的「胶囊整个消失」死局来源，故彻底去掉。
+            if (true) {
                 // ⭐ R271（用户明确要求）：**悬浮底栏 / 液态玻璃底栏只在主页面生效**。
                 // 主页面的 curPageId 是 "discovery"(发现) 或 "main"(我的)；
                 // 播放页/搜索页/设置页/收藏/最近 等二级页面是 frag:xxx / search / settings。

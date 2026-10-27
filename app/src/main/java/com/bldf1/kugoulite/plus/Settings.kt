@@ -85,7 +85,11 @@ object Settings {
      * 不来自网络 ⇒ 只能从创建点拦截（见 ChannelPostGuideBlocker）。
      */
     const val KEY_UI_CHANNEL_POST_GUIDE = "ui_channel_post_guide"
-    /** 悬浮底栏：把宿主底栏收窄圆角成贴底胶囊（Round 24） */
+    /**
+     * 悬浮底栏：把宿主底栏收窄圆角成贴底胶囊（Round 24）。
+     * ⭐ R340：面板开关已移除（用户要求，只保留「液态玻璃悬浮底栏」开关），
+     * 引擎侧恒开启；此键保留仅为兼容旧配置，不再读取。
+     */
     const val KEY_UI_FLOATING_BAR = "ui_floating_bar"
     /** 胶囊填充层改用液态玻璃材质（Round 28，API 33+；关掉则胶囊不含填充层） */
     const val KEY_UI_LIQUID_GLASS = "ui_liquid_glass"

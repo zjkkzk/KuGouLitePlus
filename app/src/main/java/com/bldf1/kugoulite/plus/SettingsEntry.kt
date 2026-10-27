@@ -634,12 +634,8 @@ object SettingsEntry {
             ToggleSection(
                 "底栏", listOf(
                     row(
-                        Settings.KEY_UI_FLOATING_BAR, "悬浮底栏",
-                        "把底栏收窄成贴底胶囊，图标与播放钮保持原生"
-                    ),
-                    row(
-                        Settings.KEY_UI_LIQUID_GLASS, "液态玻璃底栏",
-                        "胶囊内填充液态玻璃材质（实时折射背景，Android 13+）"
+                        Settings.KEY_UI_LIQUID_GLASS, "液态玻璃悬浮底栏",
+                        "悬浮胶囊内填充液态玻璃材质（实时折射背景，Android 13+）"
                     ),
                     row(
                         Settings.KEY_UI_SUBPAGE_WHEEL_HIDE, "二级页隐藏音乐转盘",
