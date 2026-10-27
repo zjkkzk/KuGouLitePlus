@@ -1419,6 +1419,8 @@ object UiCleaner {
                     val pid = computePageId(act)
                     if (pid != curPageId) {
                         ModuleLog.log("R345 页面变化: " + curPageId + " -> " + pid + "（轮询触发）")
+                        // R349：先让底栏按新页面立即纠正（播放页收回转盘），再全量扫描
+                        try { FloatingTabBar.syncPageId(pid) } catch (_: Throwable) {}
                         mainHandler.post { safeScan(act) }
                     }
                 }
@@ -2966,6 +2968,10 @@ object UiCleaner {
                     tag.contains("NewestUserCenter") -> "profile"
                     tag.contains("Local") -> "local"
                     tag.contains("Purchas") || tag.contains("Bought") -> "bought"
+                    // ⭐ R348：5.3.1 的播放页 Fragment 实测是 **NewSongPublishMainFragment**
+                    //（类名不含 Player！）—— 用户确认：**播放页不该显示音乐转盘**（那里是
+                    // 全屏黑胶大唱片）；而「新歌速递」列表页要显示转盘但它不是这个 Fragment。
+                    tag.contains("NewSongPublish") -> "player"
                     tag.contains("Player") -> "player"
                     tag.contains("Discovery") -> "discovery"
                     tag.contains("Mine") -> "main"

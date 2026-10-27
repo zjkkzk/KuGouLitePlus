@@ -583,7 +583,29 @@ internal object FloatingTabBar {
         return false
     }
 
-    /** 立即重新施加（幂等，复用首次快照）——翻页钩子用它把闪现窗口压到一帧内 */
+    /**
+     * ⭐ R349：页面变化时主动同步（由 UiCleaner 的 200ms 轮询调用）。
+     * 为什么需要：`updateOverlayHidden` 挂在 decor 的 preDraw（healListener）上，
+     * 播放页里宿主会把底栏相关视图摘掉/置 GONE，healListener 就不再产生有效回调
+     * ⇒ 播放页仍会保留二级页时摘出来的那颗小转盘（页面原生没有它）。
+     * 这里直接按 pageId 做**立即**纠正，不依赖任何绘制回调。
+     */
+    fun syncPageId(pid: String) {
+        pageId = pid
+        try {
+            if (pid == "player") {
+                // 播放页：把摘出的转盘收回原位（它自己有大黑胶唱片）
+                val sn = snapshot
+                if (detachedWheel != null && sn != null) {
+                    reattachWheel(sn)
+                    lastTopRef = null
+                    ModuleLog.log("R349 播放页：已收回转盘")
+                }
+            }
+        } catch (_: Throwable) {}
+    }
+
+        /** 立即重新施加（幂等，复用首次快照）——翻页钩子用它把闪现窗口压到一帧内 */
     fun reapplyIfBroken() {
         val snap = snapshot ?: run { applied = false; return }
         val bar = snap.bar ?: run { applied = false; return }
@@ -1315,7 +1337,12 @@ internal object FloatingTabBar {
             // ⚠️ R196 实验已回滚：实测关掉「二级页显示转盘」对卡顿没有任何改善
             //（挂载 1020 vs 979、转场 5.1s vs 5.0s），而原生二级页本来就带转盘
             // ⇒ 保持与原生一致（用户要求）。
-            topName == "FragmentViewPlayer3" -> {
+            // ⭐ R347：**播放页必须有转盘排除**。原来只靠 topName（findFragmentStack 的
+            // 栈顶类名），但 5.3.1 的 ajd 已不存在 ⇒ topName 恒为 "?" ⇒ 播放页
+            // 被当普通二级页处理、照样摘出转盘（日志实锤：栈顶=? → 转盘在顶层），
+            // 而播放页原生**没有**小转盘（它自己是全屏黑胶大唱片）。
+            // 用 pageId（computePageId 有 tag.contains("Player") -> "player" 分支）兜住。
+            topName == "FragmentViewPlayer3" || pageId == "player" -> {
                 if (detachedWheel != null) reattachWheel(snap)
                 lastTopRef = wr
                 log(always = true) { "栈顶=播放页 → 收回转盘" }
