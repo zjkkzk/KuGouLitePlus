@@ -1395,6 +1395,11 @@ object UiCleaner {
     // 悬浮底栏扫描节流时间戳
     private var lastBarTickAt = 0L
 
+    /** R341：上一次的底栏页面键（pageId + onMain）。
+     *  页面一变就立刻 ensure/verify，不再等 500ms 扫描周期 ——
+     *  修「从二级页返回发现页，胶囊要 1 秒才出现」。 */
+    private var lastBarPageKey = ""
+
     /** 每次新手势（DOWN）时重置——确保白屏后下一次 safeScan 必定触发恢复 */
     fun resetBlankRecover() {
         blankRecoverDone = false
@@ -1462,7 +1467,13 @@ object UiCleaner {
                 if (FloatingTabBarV2.isApplied()) {
                     try { FloatingTabBarV2.remove() } catch (_: Throwable) {}
                 }
-                val due = now - lastBarTickAt > (if (FloatingTabBar.isApplied()) 4000L else 500L)
+                // R341：页面切换（含 二级页→主页 返回）时立刻重建胶囊，不等扫描周期。
+                // 原来 due 固定 500ms/4s，返回发现页要等一整个周期 + apply 绘制 ⇒ 约 1 秒。
+                val barPageKey = curPageId + "|" + onMainPage
+                val pageChanged = barPageKey != lastBarPageKey
+                if (pageChanged) lastBarPageKey = barPageKey
+                val due = (pageChanged && now - lastBarTickAt > 60L) ||
+                    now - lastBarTickAt > (if (FloatingTabBar.isApplied()) 4000L else 500L)
                 if (due) {
                     lastBarTickAt = now
                     try {
