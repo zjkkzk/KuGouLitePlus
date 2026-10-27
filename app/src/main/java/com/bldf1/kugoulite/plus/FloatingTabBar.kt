@@ -1331,18 +1331,6 @@ internal object FloatingTabBar {
         }
         // R326：二级页只留中间那颗转盘 —— 转盘摘出后把本体藏掉（原生也是如此）。
         // 播放页（FragmentViewPlayer3）有全屏大唱片，转盘已 reattach，本体同样藏。
-        // ⭐ R336：「二级页隐藏音乐转盘」开关 —— 开启时把摘出的转盘也 GONE，
-        // 二级界面就看不到转盘了；关闭（默认）则转盘正常显示（胶囊+转盘一起）。
-        try {
-            snap.activityRef?.get()?.let { act3 ->
-                if (Settings.isFeature(act3, Settings.KEY_UI_SUBPAGE_WHEEL_HIDE)) {
-                    detachedWheel?.let { dw ->
-                        if (dw.visibility != View.GONE) dw.visibility = View.GONE
-                    }
-                    ModuleLog.log("R336 开关开启：二级页隐藏音乐转盘")
-                }
-            }
-        } catch (_: Throwable) {}
         if (bar.visibility != View.INVISIBLE) bar.visibility = View.INVISIBLE
         // R328（修正）：dump 实测 fki 是 fv5 的**子**（之前"平级"是误读——它占满 fv5）。
         // 白底真正来自 fv5 的**祖父**：祖父有两个子——[0] 全屏内容层、[1] 底栏承载层
