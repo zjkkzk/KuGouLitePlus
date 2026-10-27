@@ -1404,25 +1404,32 @@ object UiCleaner {
         java.util.WeakHashMap<View, Boolean>()
     )
 
-    private val pageWatchListener = android.view.ViewTreeObserver.OnPreDrawListener {
-        var ok = true
-        try {
-            val now = android.os.SystemClock.uptimeMillis()
-            if (now - lastPageWatchAt > 100L) {
-                lastPageWatchAt = now
-                // 从任意已知 decor 反推 activity 太重，这里用当前扫描记录的活动引用
+    /**
+     * ⭐⭐ R345：页面变化轮询（Handler 定时）——
+     * 前两版用 `OnPreDrawListener` 做"常驻监视"是**错的**：
+     * preDraw 只在**有绘制请求**时回调，页面稳定后不重绘 ⇒ 监视形同虚设。
+     * 日志实锤：扫描间隔是精确的 16 秒（纯定时轮询），完全不响应页面切换。
+     * Handler.postDelayed 不依赖绘制，200ms 一次，成本 = 几次 findViewById。
+     */
+    private val pagePoll = object : Runnable {
+        override fun run() {
+            try {
                 val act = lastActivityRef?.get()
                 if (act != null && !act.isFinishing && !act.isDestroyed) {
                     val pid = computePageId(act)
                     if (pid != curPageId) {
+                        ModuleLog.log("R345 页面变化: " + curPageId + " -> " + pid + "（轮询触发）")
                         mainHandler.post { safeScan(act) }
                     }
                 }
+            } catch (_: Throwable) {
             }
-        } catch (_: Throwable) {
+            try { mainHandler.postDelayed(this, 200L) } catch (_: Throwable) {}
         }
-        ok
     }
+
+    @Volatile
+    private var pagePolling = false
 
     @Volatile
     private var lastActivityRef: java.lang.ref.WeakReference<Activity>? = null
@@ -1446,18 +1453,12 @@ object UiCleaner {
             FloatingTabBar.pageId = curPageId   // R326：供底栏判定二级页
             // R342：记录活动引用并确保常驻页面监视挂在当前 decor 上
             lastActivityRef = java.lang.ref.WeakReference(activity)
-            try {
-                activity.window?.decorView?.let { dv ->
-                    if (!pageWatchDecor.contains(dv)) {
-                        val vto = dv.viewTreeObserver
-                        if (vto.isAlive) {
-                            vto.addOnPreDrawListener(pageWatchListener)
-                            pageWatchDecor.add(dv)
-                            ModuleLog.log("R342 常驻页面监视已挂载")
-                        }
-                    }
-                }
-            } catch (_: Throwable) {}
+            // R345：启动页面轮询（全局只启动一次）
+            if (!pagePolling) {
+                pagePolling = true
+                mainHandler.postDelayed(pagePoll, 200L)
+                ModuleLog.log("R345 页面轮询已启动（200ms）")
+            }
             // ⭐ R262：设置页整页跳过扫描（含周期性全树扫描），彻底断掉滑动闪烁
             activity.window?.decorView?.let { if (isInSettingsPage(it)) return }
             // ⭐ R167：收藏/最近/本地/已购/个人主页 无净化目标，整页跳过
@@ -1523,8 +1524,11 @@ object UiCleaner {
                 if (due) {
                     lastBarTickAt = now
                     try {
-                        if (FloatingTabBar.isApplied()) FloatingTabBar.verify()
+                        val appliedBefore = FloatingTabBar.isApplied()
+                        ModuleLog.log("R343 底栏处理开始 applied=" + appliedBefore + " pageId=" + curPageId)
+                        if (appliedBefore) FloatingTabBar.verify()
                         else FloatingTabBar.ensure(activity, decor)
+                        ModuleLog.log("R343 底栏处理完成 applied=" + FloatingTabBar.isApplied())
                     } catch (t: Throwable) {
                         ModuleLog.log("悬浮底栏异常: ${t.javaClass.simpleName}: ${t.message}")
                     }
