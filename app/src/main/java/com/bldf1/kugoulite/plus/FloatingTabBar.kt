@@ -430,6 +430,12 @@ internal object FloatingTabBar {
                     updateOverlayHidden(snap)
                 }
                 if (snap != null && geometryBrokenFast(snap)) {
+                    // ⭐ R359b：**播放页（含一起听等覆盖场景）禁止逐帧自愈重排**
+                    // —— 同 R359 的理由：5.3.1 fv5 是 270px 大承载层，reapply 的
+                    // addView/params 操作会扰动换场景按钮 cd1 所在的 dq_/dw4 布局，
+                    // 手指点击撞上重排即失效。逐帧路径比 4s verify 频率高得多，
+                    // 危害更大，必须一并停用。
+                    if (pageId == "player") return@OnPreDrawListener true
                     if (healStreak >= HEAL_MAX_STREAK) {
                         detachHealWatch()
                         log(always = true) {
