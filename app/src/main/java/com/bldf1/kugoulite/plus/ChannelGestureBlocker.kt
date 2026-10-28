@@ -195,6 +195,7 @@ object ChannelGestureBlocker {
                 consumed = intercepting
                 if (consumed && pendingCancel) {
                     pendingCancel = false
+                    intercepting = false   // ⭐ R356：CANCEL 后立即停止吞事件
                     val cancel = MotionEvent.obtain(event)
                     cancel.action = MotionEvent.ACTION_CANCEL
                     try {
@@ -203,6 +204,12 @@ object ChannelGestureBlocker {
                     } finally {
                         cancel.recycle()
                     }
+                    // ⭐ R356：本帧不消费（CANCEL 已转发给宿主，后续 MOVE/UP 也放行）。
+                    // 5.3.1 的新下拉刷新组件在收到 CANCEL 后**仍需继续收事件**才会
+                    // 把提示归位；旧版把 intercepting 保持 true ⇒ 后续全被吞 ⇒
+                    // 提示卡在半空不回弹（用户实测：下拉不触发刷新时残留）。
+                    // 进频道本身由 floor.b.i() 的创建拦截挡住，手势层只需这一下。
+                    consumed = false
                 }
             }
         } catch (_: Exception) {

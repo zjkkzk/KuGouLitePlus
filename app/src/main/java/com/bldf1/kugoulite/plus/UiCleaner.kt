@@ -232,12 +232,6 @@ object UiCleaner {
     )
 
     private val RULES = listOf(
-        // ⭐ R354（用户要求）：发现页顶栏下方的「下拉刷新 ⌄」提示常驻不消失
-        //（eym = TextView「下拉刷新」，eyl = 右侧箭头 ImageView，
-        //  实测位置 (527,244)-(692,278)，紧贴顶栏 tab 下方）。
-        // 下拉刷新功能本身不受影响，只是把这行提示藏掉。
-        Rule(Settings.KEY_UI_PULL_REFRESH_HINT, "下拉刷新提示",
-            listOf(), listOf("eym", "eyl")),
         Rule(Settings.KEY_UI_SPLASH, "开屏广告",
             listOf("SplashAd", "OpenAd", "SplashAdvert", "GdtAd", "tangramsplash"), listOf()),
         Rule(Settings.KEY_UI_BANNER, "首页Banner",
