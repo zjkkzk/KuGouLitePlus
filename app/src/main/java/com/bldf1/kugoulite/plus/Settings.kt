@@ -98,6 +98,8 @@ object Settings {
      * 引擎侧不再读取；此键保留仅为旧配置兼容。
      */
     const val KEY_UI_SUBPAGE_WHEEL_HIDE = "ui_subpage_wheel_hide"
+    /** R354：下拉刷新提示（发现页顶栏下方常驻的「下拉刷新 ⌄」，松手后不消失） */
+    const val KEY_UI_PULL_REFRESH_HINT = "ui_pull_refresh_hint"
 
     // ===== 防检测 =====
     const val KEY_BYPASS_SIGNATURE = "bypass_signature"

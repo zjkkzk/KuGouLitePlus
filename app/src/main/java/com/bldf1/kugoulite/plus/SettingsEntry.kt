@@ -591,6 +591,10 @@ object SettingsEntry {
                         Settings.isBlockTaskPromo(ctx)
                     ),
                     row(Settings.KEY_UI_SPLASH, "去开屏广告", "跳过开屏广告，直接进首页"),
+                    row(
+                        Settings.KEY_UI_PULL_REFRESH_HINT, "下拉刷新提示",
+                        "隐藏发现页顶栏下方常驻的「下拉刷新」字样与箭头（刷新功能不受影响）"
+                    ),
                     row(Settings.KEY_UI_BANNER, "去首页 Banner 广告", "隐藏发现页 MosaicView 广告轮播位"),
                     row(Settings.KEY_UI_DISCOVER_ADS, "去发现页广告轮播", "拦截 Discovery 系列广告视图出生"),
                     row(Settings.KEY_UI_DISCOVER_BANNER_SLOT, "去发现页 Banner 槽位", "隐藏发现页 feed 顶部的广告位槽"),
