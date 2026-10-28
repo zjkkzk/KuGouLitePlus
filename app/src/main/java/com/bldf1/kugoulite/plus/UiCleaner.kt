@@ -3038,11 +3038,24 @@ object UiCleaner {
         }
         val fm = getFm?.invoke(a)
         val fs = fm?.javaClass?.getMethod("getFragments")?.invoke(fm) as? List<*>
-        val resumed = fs?.lastOrNull { f ->
+        fun isResumed(f: Any?): Boolean = try {
             f != null && (f.javaClass.methods.firstOrNull { it.name == "isResumed" }
                 ?.invoke(f) as? Boolean) == true
-        }
-        (resumed ?: fs?.lastOrNull())?.javaClass?.name ?: "?"
+        } catch (_: Throwable) { false }
+        fun viewShown(f: Any?): Boolean = try {
+            val v = f?.javaClass?.getMethod("getView")?.invoke(f) as? View
+            v != null && v.isShown
+        } catch (_: Throwable) { false }
+
+        val cands = fs?.filter { isResumed(it) } ?: emptyList<Any>()
+        // ⭐⭐ R353：**必须优先「View 真可见」的 Fragment**。
+        // 播放页的 YoungPlayerFragment 打开后**常驻在 FragmentManager 里**，
+        // 从播放页退回列表时它仍可能 isResumed=true 且排在列表末尾 ⇒
+        // lastOrNull 一直取到它 ⇒ pageId 永远是 player（日志实锤：
+        // 返回列表页后没有任何新 tag 日志，cover 一直 false，胶囊一直被恢复显示）。
+        val visible = cands.lastOrNull { viewShown(it) }
+        val chosen = visible ?: cands.lastOrNull() ?: fs?.lastOrNull()
+        chosen?.javaClass?.name ?: "?"
     } catch (_: Throwable) {
         "?"
     }

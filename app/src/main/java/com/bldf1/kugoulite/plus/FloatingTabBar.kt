@@ -1319,6 +1319,7 @@ internal object FloatingTabBar {
                     if (gp.visibility != View.VISIBLE) gp.visibility = View.VISIBLE
                 }
             } catch (_: Throwable) {}
+            diagState("主页恢复", bar)
             return
         }
         // R326：恢复「二级页把转盘摘到 DecorView」（R198 用 return 短路了这段）。
@@ -1372,6 +1373,25 @@ internal object FloatingTabBar {
             }
         } catch (_: Throwable) {}
         log(always = true) { "二级页：藏底栏，只留转盘" }
+        diagState("二级页藏完", bar)
+    }
+
+    /**
+     * R352 诊断：打印「底栏本体/承载层可见性 + 页面」——**只在变化时打**，
+     * 避免 200ms 轮询把 445 行日志冲满（这个坑踩过一次）。
+     */
+    private var lastDiagState: String = ""
+
+    private fun diagState(tag: String, bar: View) {
+        try {
+            val gpVis = (bar.parent?.parent as? ViewGroup)?.visibility
+            val cur = tag + "|" + bar.visibility + "|" + gpVis + "|" + pageId +
+                "|" + (detachedWheel != null)
+            if (cur != lastDiagState) {
+                lastDiagState = cur
+                ModuleLog.log("R352 " + cur)
+            }
+        } catch (_: Throwable) {}
     }
 
     /** FragmentStackView 的宿主资源 ID 名（真机 dump 实锤：app:id/ajd） */
