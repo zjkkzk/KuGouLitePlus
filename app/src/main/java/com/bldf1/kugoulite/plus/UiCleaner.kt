@@ -1441,6 +1441,10 @@ object UiCleaner {
      *  修「从二级页返回发现页，胶囊要 1 秒才出现」。 */
     private var lastBarPageKey = ""
 
+    /** R351 诊断：上次打印的 activePageTag（避免刷屏） */
+    @Volatile
+    private var lastTagLogged = ""
+
     /** 每次新手势（DOWN）时重置——确保白屏后下一次 safeScan 必定触发恢复 */
     fun resetBlankRecover() {
         blankRecoverDone = false
@@ -2944,6 +2948,11 @@ object UiCleaner {
             cn.contains("Search", true) -> "search"
             else -> {
                 val tag = activePageTag(a)
+                // ⭐ R351 诊断：打印 tag（仅变化时）
+                if (tag != lastTagLogged) {
+                    lastTagLogged = tag
+                    ModuleLog.log("R351 activePageTag=" + tag)
+                }
                 // ⭐ R272（实锤）：Glide / Lifecycle / AndroidX 的**内部空 Fragment** 会抢到
                 // resumed 状态，activePageTag 取到它们 ⇒ curPageId 变成
                 // "frag:SupportRequestManagerFragment" ⇒ 页面判断全废。
@@ -2968,10 +2977,25 @@ object UiCleaner {
                     tag.contains("NewestUserCenter") -> "profile"
                     tag.contains("Local") -> "local"
                     tag.contains("Purchas") || tag.contains("Bought") -> "bought"
-                    // ⭐ R348：5.3.1 的播放页 Fragment 实测是 **NewSongPublishMainFragment**
-                    //（类名不含 Player！）—— 用户确认：**播放页不该显示音乐转盘**（那里是
-                    // 全屏黑胶大唱片）；而「新歌速递」列表页要显示转盘但它不是这个 Fragment。
-                    tag.contains("NewSongPublish") -> "player"
+                    // ⭐ R348/R349：5.3.1 的播放页 Fragment 是 NewSongPublishMainFragment
+                    //（类名不含 Player），但**「新歌速递」列表页用的是同一个 Fragment**
+                    // ⇒ 光靠类名分不开（用户实锤：列表页要显示转盘+不显示胶囊，
+                    // 误判成 player 后胶囊会多显示出来）。
+                    // 用播放页独有的结构特征区分：播放页有书签图标 dt7 + elq 同时存在，
+                    // 列表页没有（这是脚本 play_page_open 一直在用的判据）。
+                    tag.contains("NewSongPublish") -> {
+                        val d = a.window?.decorView
+                        val pkg = a.packageName
+                        var isPlayer = false
+                        if (d != null) {
+                            try {
+                                val v7 = d.findViewById<View>(d.resources.getIdentifier("dt7", "id", pkg))
+                                val vq = d.findViewById<View>(d.resources.getIdentifier("elq", "id", pkg))
+                                isPlayer = v7 != null && vq != null
+                            } catch (_: Throwable) {}
+                        }
+                        if (isPlayer) "player" else "frag:NewSongPublish"
+                    }
                     tag.contains("Player") -> "player"
                     tag.contains("Discovery") -> "discovery"
                     tag.contains("Mine") -> "main"
