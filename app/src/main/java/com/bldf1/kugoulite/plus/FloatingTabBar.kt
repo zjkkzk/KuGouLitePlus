@@ -610,6 +610,14 @@ internal object FloatingTabBar {
         val snap = snapshot ?: run { applied = false; return }
         val bar = snap.bar ?: run { applied = false; return }
         if (!applied) return
+        // ⭐ R359：**播放页停用 reapply**——5.3.1 的 fv5 是 270px 大承载层，
+        // 播放页里 reapply 会真实扰动换场景按钮 cd1 所在的 dq_/dw4 布局：
+        // 日志实锤「宿主改回了底栏子视图几何，重新施加」每 16s 整打一次
+        // ⇒ 手指点击 cd1 撞上 reapply 的 addView/layout ⇒ 触摸目标瞬间失效
+        // ⇒ 换场景偶发点不了（关模块即好，用户实锤）。
+        // 二级页 cover=true 时 bar 本来就隐藏，自愈无意义；主页（discovery/main）
+        // 保留原自愈（那边 fv5 薄层改造需要）。
+        if (pageId == "player") return
         if (bar.parent == null) {
             restore()
             return

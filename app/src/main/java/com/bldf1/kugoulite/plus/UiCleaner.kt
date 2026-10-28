@@ -1003,6 +1003,10 @@ object UiCleaner {
      */
     private var mainPagerHookInstalled = false
 
+    /** R358 诊断：上次打印过类名的 pager（避免高频翻页刷屏） */
+    @Volatile
+    private var lastPagerLogged: String? = null
+
     private fun installMainPagerTracker(xposed: XposedModule, classLoader: ClassLoader) {
         if (mainPagerHookInstalled) return
         try {
@@ -1035,8 +1039,20 @@ object UiCleaner {
                         //    换场景即恢复；小米因时序差异不受影响）。
                         //    ⇒ 非 MainFragmentViewPage 一律原样放行。
                         val pagerObj = chain.thisObject
+                        // ⭐ R358 诊断：打印进 hook 的 pager 类名与判定（仅类名变化时打，
+                        // 高频翻页不会刷屏）——定位「换场景点击失效」：
+                        // 5.3.1 的 3D 场景 pager 若类名也含 MainFragmentViewPage，
+                        // 会被本 hook 误拦（v1.2.4 OPPO 实锤过同类问题）。
+                        val clsName = pagerObj?.javaClass?.name ?: "null"
+                        if (clsName != lastPagerLogged) {
+                            lastPagerLogged = clsName
+                            ModuleLog.log(
+                                "R358 pager hook: cls=" + clsName +
+                                    " isMain=" + clsName.contains("MainFragmentViewPage")
+                            )
+                        }
                         if (pagerObj == null ||
-                            !pagerObj.javaClass.name.contains("MainFragmentViewPage")
+                            !clsName.contains("MainFragmentViewPage")
                         ) {
                             return@intercept chain.proceed()
                         }
@@ -1423,6 +1439,39 @@ object UiCleaner {
                         try { FloatingTabBar.syncPageId(pid) } catch (_: Throwable) {}
                         mainHandler.post { safeScan(act) }
                     }
+                    // ⭐ R357：下拉刷新提示残留检测。
+                    // 现象：下拉出现「下拉刷新 ⌄」(eym/eyl，容器 g93) 后不拉到底触发刷新
+                    // 就松手，容器收起动画不执行，提示卡在 y≈198 不消失（真机 dump 实锤）。
+                    // 滚动一下列表就会触发宿主收起（g93 从树里移除）—— 已实测。
+                    // 方案：discovery 页轮询里检测 g93 连续 3 次可见（600ms，正在下拉的
+                    // 手势只会出现 1-2 次，不会误触发），给 feed 1px 滚动触发宿主收起。
+                    if (pid == "discovery") {
+                        try {
+                            val decor = act.window?.decorView
+                            val g93 = decor?.findViewById<View>(
+                                act.resources.getIdentifier("g93", "id", act.packageName))
+                            if (g93 != null && g93.isShown) {
+                                g93Streak++
+                                if (g93Streak >= 3) {
+                                    g93Streak = 0
+                                    val feed = ChannelGestureBlocker.feedRef?.get()
+                                    if (feed != null) {
+                                        feed.javaClass.getMethod(
+                                            "smoothScrollBy", Int::class.javaPrimitiveType,
+                                            Int::class.javaPrimitiveType
+                                        ).invoke(feed, 0, 1)
+                                        ModuleLog.log("R357 下拉刷新提示残留 → feed 微滚动触发收起")
+                                    }
+                                }
+                            } else {
+                                g93Streak = 0
+                            }
+                        } catch (_: Throwable) {
+                            g93Streak = 0
+                        }
+                    } else {
+                        g93Streak = 0
+                    }
                 }
             } catch (_: Throwable) {
             }
@@ -1432,6 +1481,10 @@ object UiCleaner {
 
     @Volatile
     private var pagePolling = false
+
+    /** R357：下拉刷新容器 g93 连续出现的轮询次数（防误伤正在下拉的手势） */
+    @Volatile
+    private var g93Streak = 0
 
     @Volatile
     private var lastActivityRef: java.lang.ref.WeakReference<Activity>? = null
