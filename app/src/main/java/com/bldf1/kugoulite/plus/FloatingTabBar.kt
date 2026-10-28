@@ -543,6 +543,12 @@ internal object FloatingTabBar {
         if (decor != null) attachHealWatch(decor)
         // Round 45：preDraw 被熔断时，push 页的隐藏/恢复由 4s 轮询兜底
         updateOverlayHidden(snap)
+        // ⭐ R359c：**播放页 verify 同样停用 reapply**——R359/R359b 只堵了
+        // reapplyIfBroken() 和 healListener 两条路，但 verify()（4s 轮询）自己
+        // 也直接调 reapply(snap,bar)，没经过 R359 的门槛！OPPO 实锤：升级 1.3.0
+        // 后播放页「宿主改回了…重新施加」仍在刷（13:33-13:35，pageId=player
+        // 时段）⇒ 换场景面板依旧弹不出。与 R359 同理：播放页自愈无意义。
+        if (pageId == "player") return
         if (geometryBroken(snap)) {
             reapply(snap, bar)
             return
