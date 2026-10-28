@@ -312,6 +312,10 @@ internal object FloatingTabBar {
     @Volatile
     private var overlayHidden = false
 
+    /** R360：updateOverlayHidden 的日志去重（每帧 preDraw 都会进来，不打全会刷爆日志） */
+    @Volatile
+    private var lastOverlayLog: String = ""
+
     // ⚠️ Round 34：「内容根」的类名后缀 / DFS 限深已移到 glass/GlassTarget.kt，
     // 与设置面板共用一份（两边各写一份，改一处漏一处）。
 
@@ -1360,7 +1364,10 @@ internal object FloatingTabBar {
             topName == "FragmentViewPlayer3" || pageId == "player" -> {
                 if (detachedWheel != null) reattachWheel(snap)
                 lastTopRef = wr
-                log(always = true) { "栈顶=播放页 → 收回转盘" }
+                if (lastOverlayLog != "player") {
+                    lastOverlayLog = "player"
+                    log(always = true) { "栈顶=播放页 → 收回转盘" }
+                }
             }
             else -> {
                 if (detachedWheel == null) {
@@ -1368,7 +1375,10 @@ internal object FloatingTabBar {
                 } else {
                     lastTopRef = wr
                 }
-                log(always = true) { "栈顶=$topName → 转盘在顶层" }
+                if (lastOverlayLog != topName) {
+                    lastOverlayLog = topName
+                    log(always = true) { "栈顶=$topName → 转盘在顶层" }
+                }
             }
         }
         // R326：二级页只留中间那颗转盘 —— 转盘摘出后把本体藏掉（原生也是如此）。
@@ -1386,7 +1396,10 @@ internal object FloatingTabBar {
                 }
             }
         } catch (_: Throwable) {}
-        log(always = true) { "二级页：藏底栏，只留转盘" }
+        if (lastOverlayLog != "hidden") {
+            lastOverlayLog = "hidden"
+            log(always = true) { "二级页：藏底栏，只留转盘" }
+        }
         diagState("二级页藏完", bar)
     }
 
