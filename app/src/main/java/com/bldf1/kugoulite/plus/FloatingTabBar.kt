@@ -312,6 +312,10 @@ internal object FloatingTabBar {
     @Volatile
     private var overlayHidden = false
 
+    /** R360：updateOverlayHidden 的日志去重（每帧 preDraw 都会进来，不打全会刷爆日志） */
+    @Volatile
+    private var lastOverlayLog: String = ""
+
     // ⚠️ Round 34：「内容根」的类名后缀 / DFS 限深已移到 glass/GlassTarget.kt，
     // 与设置面板共用一份（两边各写一份，改一处漏一处）。
 
@@ -430,6 +434,12 @@ internal object FloatingTabBar {
                     updateOverlayHidden(snap)
                 }
                 if (snap != null && geometryBrokenFast(snap)) {
+                    // ⭐ R359b：**播放页（含一起听等覆盖场景）禁止逐帧自愈重排**
+                    // —— 同 R359 的理由：5.3.1 fv5 是 270px 大承载层，reapply 的
+                    // addView/params 操作会扰动换场景按钮 cd1 所在的 dq_/dw4 布局，
+                    // 手指点击撞上重排即失效。逐帧路径比 4s verify 频率高得多，
+                    // 危害更大，必须一并停用。
+                    if (pageId == "player") return@OnPreDrawListener true
                     if (healStreak >= HEAL_MAX_STREAK) {
                         detachHealWatch()
                         log(always = true) {
@@ -533,6 +543,12 @@ internal object FloatingTabBar {
         if (decor != null) attachHealWatch(decor)
         // Round 45：preDraw 被熔断时，push 页的隐藏/恢复由 4s 轮询兜底
         updateOverlayHidden(snap)
+        // ⭐ R359c：**播放页 verify 同样停用 reapply**——R359/R359b 只堵了
+        // reapplyIfBroken() 和 healListener 两条路，但 verify()（4s 轮询）自己
+        // 也直接调 reapply(snap,bar)，没经过 R359 的门槛！OPPO 实锤：升级 1.3.0
+        // 后播放页「宿主改回了…重新施加」仍在刷（13:33-13:35，pageId=player
+        // 时段）⇒ 换场景面板依旧弹不出。与 R359 同理：播放页自愈无意义。
+        if (pageId == "player") return
         if (geometryBroken(snap)) {
             reapply(snap, bar)
             return
@@ -610,6 +626,14 @@ internal object FloatingTabBar {
         val snap = snapshot ?: run { applied = false; return }
         val bar = snap.bar ?: run { applied = false; return }
         if (!applied) return
+        // ⭐ R359：**播放页停用 reapply**——5.3.1 的 fv5 是 270px 大承载层，
+        // 播放页里 reapply 会真实扰动换场景按钮 cd1 所在的 dq_/dw4 布局：
+        // 日志实锤「宿主改回了底栏子视图几何，重新施加」每 16s 整打一次
+        // ⇒ 手指点击 cd1 撞上 reapply 的 addView/layout ⇒ 触摸目标瞬间失效
+        // ⇒ 换场景偶发点不了（关模块即好，用户实锤）。
+        // 二级页 cover=true 时 bar 本来就隐藏，自愈无意义；主页（discovery/main）
+        // 保留原自愈（那边 fv5 薄层改造需要）。
+        if (pageId == "player") return
         if (bar.parent == null) {
             restore()
             return
@@ -1346,7 +1370,10 @@ internal object FloatingTabBar {
             topName == "FragmentViewPlayer3" || pageId == "player" -> {
                 if (detachedWheel != null) reattachWheel(snap)
                 lastTopRef = wr
-                log(always = true) { "栈顶=播放页 → 收回转盘" }
+                if (lastOverlayLog != "player") {
+                    lastOverlayLog = "player"
+                    log(always = true) { "栈顶=播放页 → 收回转盘" }
+                }
             }
             else -> {
                 if (detachedWheel == null) {
@@ -1354,7 +1381,10 @@ internal object FloatingTabBar {
                 } else {
                     lastTopRef = wr
                 }
-                log(always = true) { "栈顶=$topName → 转盘在顶层" }
+                if (lastOverlayLog != topName) {
+                    lastOverlayLog = topName
+                    log(always = true) { "栈顶=$topName → 转盘在顶层" }
+                }
             }
         }
         // R326：二级页只留中间那颗转盘 —— 转盘摘出后把本体藏掉（原生也是如此）。
@@ -1372,7 +1402,10 @@ internal object FloatingTabBar {
                 }
             }
         } catch (_: Throwable) {}
-        log(always = true) { "二级页：藏底栏，只留转盘" }
+        if (lastOverlayLog != "hidden") {
+            lastOverlayLog = "hidden"
+            log(always = true) { "二级页：藏底栏，只留转盘" }
+        }
         diagState("二级页藏完", bar)
     }
 
